@@ -1,0 +1,47 @@
+<svg width="32" height="32" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="primary" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E3A8A" />
+      <stop offset="25%" stop-color="#3B82F6" />
+      <stop offset="75%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="50%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#EC4899" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main Hexagon -->
+  <polygon points="60,8 95,30 95,90 60,112 25,90 25,30" fill="url(#primary)" />
+  
+  <!-- Inner Hexagon -->
+  <polygon points="60,18 85,35 85,85 60,102 35,85 35,35" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+  
+  <!-- Central Star -->
+  <g transform="translate(60,60)">
+    <polygon points="0,-20 6,-6 20,-6 10,2 16,16 0,8 -16,16 -10,2 -20,-6 -6,-6" fill="white" opacity="0.95" />
+    <circle cx="0" cy="0" r="6" fill="white" opacity="0.8"/>
+    <circle cx="0" cy="0" r="12" fill="none" stroke="white" stroke-width="1.5" opacity="0.6"/>
+  </g>
+  
+  <!-- Service Nodes -->
+  <g transform="translate(60,60)">
+    <g transform="translate(0,-35)">
+      <circle r="5" fill="url(#accent)" opacity="0.9"/>
+    </g>
+    <g transform="translate(30,18)">
+      <circle r="4" fill="white" opacity="0.8"/>
+    </g>
+    <g transform="translate(30,-18)">
+      <circle r="4.5" fill="url(#accent)" opacity="0.7"/>
+    </g>
+    <g transform="translate(-30,18)">
+      <circle r="3.5" fill="white" opacity="0.6"/>
+    </g>
+    <g transform="translate(-30,-18)">
+      <circle r="3" fill="url(#accent)" opacity="0.5"/>
+    </g>
+  </g>
+</svg>
