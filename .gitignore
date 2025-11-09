@@ -1,0 +1,156 @@
+# OpenNova Project .gitignore
+
+# Build Artifacts
+backend/target/
+frontend/build/
+frontend/dist/
+
+# Dependencies
+frontend/node_modules/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+
+# IDE Files
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime Files
+*.pid
+*.seed
+*.pid.lock
+
+# Environment Files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Upload Files (keep structure but ignore content)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage Reports
+coverage/
+*.lcov
+
+# Package Files
+*.tgz
+*.tar.gz
+
+# Cache Files
+.npm
+.eslintcache
+.cache/
+
+# Editor Files
+*.sublime-project
+*.sublime-workspace
+
+# Test Files
+test-results/
+junit.xml
+
+# Documentation Build
+docs/_build/
+
+# Backup Files
+*.bak
+*.backup
+
+# Spring Boot
+application-*.properties
+!application.properties
+
+# Maven
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle/
+build/
+
+# IntelliJ
+out/
+
+# Eclipse
+bin/
+.metadata/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# VS Code
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# JetBrains
+.idea/
+*.iml
+
+# Compiled Java
+*.class
+
+# JAR Files
+*.jar
+*.war
+*.ear
+
+# Virtual Machine Crash Logs
+hs_err_pid*
+
+# MacOS
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs_vista.db
+*.stackdump
+
+# Linux
+*~
+
+# Temporary folders
+tmp/
+temp/
