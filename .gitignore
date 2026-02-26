@@ -49,6 +49,8 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+render-environment-variables.txt
+*.txt
 
 # Temporary Files
 *.tmp
