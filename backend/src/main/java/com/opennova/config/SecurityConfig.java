@@ -64,7 +64,8 @@ public class SecurityConfig {
             "http://localhost:*", 
             "http://127.0.0.1:*",
             "https://localhost:*",
-            "https://127.0.0.1:*"
+            "https://127.0.0.1:*",
+            "https://*.onrender.com"
         ));
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
