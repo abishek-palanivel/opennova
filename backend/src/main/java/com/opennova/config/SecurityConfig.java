@@ -65,7 +65,8 @@ public class SecurityConfig {
             "http://127.0.0.1:*",
             "https://localhost:*",
             "https://127.0.0.1:*",
-            "https://*.onrender.com"
+            "https://*.onrender.com",
+            "https://opennova-frontend.onrender.com"
         ));
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
