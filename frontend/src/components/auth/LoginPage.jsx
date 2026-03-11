@@ -10,7 +10,9 @@ const LoginPage = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'USER',
+    establishmentType: ''
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -132,13 +134,14 @@ const LoginPage = () => {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        role: 'USER'
+        role: formData.role,
+        establishmentType: formData.role === 'OWNER' ? formData.establishmentType : null
       });
       
       if (result.success) {
         setMessage(result.message);
         setIsLogin(true);
-        setFormData({ name: '', email: '', password: '', confirmPassword: '' });
+        setFormData({ name: '', email: '', password: '', confirmPassword: '', role: 'USER', establishmentType: '' });
       } else {
         setMessage(result.message);
       }
@@ -226,20 +229,58 @@ const LoginPage = () => {
             ) : (
               <>
                 {!isLogin && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      className="input-field"
-                      placeholder="Enter your full name"
-                    />
-                    {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="input-field"
+                        placeholder="Enter your full name"
+                      />
+                      {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Role
+                      </label>
+                      <select
+                        name="role"
+                        value={formData.role}
+                        onChange={handleInputChange}
+                        className="input-field"
+                      >
+                        <option value="USER">User</option>
+                        <option value="OWNER">Owner</option>
+                        <option value="ADMIN">Admin</option>
+                      </select>
+                    </div>
+
+                    {formData.role === 'OWNER' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Establishment Type
+                        </label>
+                        <select
+                          name="establishmentType"
+                          value={formData.establishmentType}
+                          onChange={handleInputChange}
+                          className="input-field"
+                        >
+                          <option value="">Select Type</option>
+                          <option value="HOTEL">Hotel</option>
+                          <option value="HOSPITAL">Hospital</option>
+                          <option value="SHOP">Shop</option>
+                        </select>
+                        {errors.establishmentType && <p className="text-red-500 text-sm mt-1">{errors.establishmentType}</p>}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div>
@@ -312,7 +353,7 @@ const LoginPage = () => {
                     type="button"
                     onClick={() => {
                       setIsLogin(!isLogin);
-                      setFormData({ name: '', email: '', password: '', confirmPassword: '' });
+                      setFormData({ name: '', email: '', password: '', confirmPassword: '', role: 'USER', establishmentType: '' });
                       setErrors({});
                       setMessage('');
                     }}
