@@ -731,33 +731,4 @@ public class EstablishmentService {
             return new HashMap<>();
         }
     }
-
-    public long getTotalEstablishments() {
-        try {
-            return establishmentRepository.count();
-        } catch (Exception e) {
-            System.err.println("Error getting total establishments: " + e.getMessage());
-            return 0;
-        }
-    }
-
-    public long getActiveEstablishments() {
-        try {
-            return establishmentRepository.countByIsActiveTrue();
-        } catch (Exception e) {
-            System.err.println("Error getting active establishments: " + e.getMessage());
-            return 0;
-        }
-    }
-
-    public long getTotalBookings() {
-        try {
-            // This would need to be implemented based on your booking repository
-            // For now, return a mock value
-            return 156; // Mock data
-        } catch (Exception e) {
-            System.err.println("Error getting total bookings: " + e.getMessage());
-            return 0;
-        }
-    }
 }
