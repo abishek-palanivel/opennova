@@ -32,26 +32,26 @@ BEGIN
 
     -- Only insert establishments if owners exist
     IF hotel_owner_id IS NOT NULL THEN
-        INSERT INTO establishments (name, type, description, address, city, state, pincode, phone_number, email, owner_id, status, rating, total_reviews, opening_time, closing_time, is_open_24_7, latitude, longitude, created_at, updated_at, is_active)
+        INSERT INTO establishments (name, type, description, address, city, state, pincode, phone_number, email, owner_id, status, rating, total_reviews, opening_time, closing_time, is_open_24_7, latitude, longitude, created_at, updated_at)
         VALUES 
-            ('Grand Hotel Karur', 'HOTEL', 'Luxury hotel with modern amenities and excellent service', '123 Main Street, Karur', 'Karur', 'Tamil Nadu', '639001', '9876543230', 'grandhotel@example.com', hotel_owner_id, 'ACTIVE', 4.5, 25, '09:00:00', '22:00:00', false, 10.9601, 78.0766, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true),
-            ('Royal Palace Hotel', 'HOTEL', 'Heritage hotel with traditional architecture', '321 Palace Road, Karur', 'Karur', 'Tamil Nadu', '639002', '9876543233', 'royalpalace@example.com', hotel_owner_id, 'ACTIVE', 4.7, 30, '08:00:00', '23:00:00', false, 10.9577, 78.0732, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true)
+            ('Grand Hotel Karur', 'HOTEL', 'Luxury hotel with modern amenities and excellent service', '123 Main Street, Karur', 'Karur', 'Tamil Nadu', '639001', '9876543230', 'grandhotel@example.com', hotel_owner_id, 'ACTIVE', 4.5, 25, '09:00:00', '22:00:00', false, 10.9601, 78.0766, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+            ('Royal Palace Hotel', 'HOTEL', 'Heritage hotel with traditional architecture', '321 Palace Road, Karur', 'Karur', 'Tamil Nadu', '639002', '9876543233', 'royalpalace@example.com', hotel_owner_id, 'ACTIVE', 4.7, 30, '08:00:00', '23:00:00', false, 10.9577, 78.0732, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT DO NOTHING;
     END IF;
 
     IF hospital_owner_id IS NOT NULL THEN
-        INSERT INTO establishments (name, type, description, address, city, state, pincode, phone_number, email, owner_id, status, rating, total_reviews, opening_time, closing_time, is_open_24_7, latitude, longitude, created_at, updated_at, is_active)
+        INSERT INTO establishments (name, type, description, address, city, state, pincode, phone_number, email, owner_id, status, rating, total_reviews, opening_time, closing_time, is_open_24_7, latitude, longitude, created_at, updated_at)
         VALUES 
-            ('City Hospital Namakkal', 'HOSPITAL', 'Multi-specialty hospital with 24/7 emergency services', '456 Health Avenue, Namakkal', 'Namakkal', 'Tamil Nadu', '637001', '9876543231', 'cityhospital@example.com', hospital_owner_id, 'ACTIVE', 4.8, 50, '00:00:00', '23:59:59', true, 11.2189, 78.1677, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true),
-            ('Care Hospital', 'HOSPITAL', 'Specialized in cardiac and orthopedic care', '654 Care Street, Namakkal', 'Namakkal', 'Tamil Nadu', '637002', '9876543234', 'carehospital@example.com', hospital_owner_id, 'ACTIVE', 4.6, 40, '00:00:00', '23:59:59', true, 11.2211, 78.1655, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true)
+            ('City Hospital Namakkal', 'HOSPITAL', 'Multi-specialty hospital with 24/7 emergency services', '456 Health Avenue, Namakkal', 'Namakkal', 'Tamil Nadu', '637001', '9876543231', 'cityhospital@example.com', hospital_owner_id, 'ACTIVE', 4.8, 50, '00:00:00', '23:59:59', true, 11.2189, 78.1677, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+            ('Care Hospital', 'HOSPITAL', 'Specialized in cardiac and orthopedic care', '654 Care Street, Namakkal', 'Namakkal', 'Tamil Nadu', '637002', '9876543234', 'carehospital@example.com', hospital_owner_id, 'ACTIVE', 4.6, 40, '00:00:00', '23:59:59', true, 11.2211, 78.1655, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT DO NOTHING;
     END IF;
 
     IF shop_owner_id IS NOT NULL THEN
-        INSERT INTO establishments (name, type, description, address, city, state, pincode, phone_number, email, owner_id, status, rating, total_reviews, opening_time, closing_time, is_open_24_7, latitude, longitude, created_at, updated_at, is_active)
+        INSERT INTO establishments (name, type, description, address, city, state, pincode, phone_number, email, owner_id, status, rating, total_reviews, opening_time, closing_time, is_open_24_7, latitude, longitude, created_at, updated_at)
         VALUES 
-            ('Modern Shop Salem', 'SHOP', 'Electronics and gadgets store with latest products', '789 Market Road, Salem', 'Salem', 'Tamil Nadu', '636001', '9876543232', 'modernshop@example.com', shop_owner_id, 'ACTIVE', 4.2, 15, '10:00:00', '21:00:00', false, 11.6643, 78.1460, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true),
-            ('Fashion Hub', 'SHOP', 'Trendy clothing and accessories', '234 Fashion Street, Salem', 'Salem', 'Tamil Nadu', '636003', '9876543235', 'fashionhub@example.com', shop_owner_id, 'ACTIVE', 4.4, 20, '10:00:00', '20:00:00', false, 11.6688, 78.1422, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true)
+            ('Modern Shop Salem', 'SHOP', 'Electronics and gadgets store with latest products', '789 Market Road, Salem', 'Salem', 'Tamil Nadu', '636001', '9876543232', 'modernshop@example.com', shop_owner_id, 'ACTIVE', 4.2, 15, '10:00:00', '21:00:00', false, 11.6643, 78.1460, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+            ('Fashion Hub', 'SHOP', 'Trendy clothing and accessories', '234 Fashion Street, Salem', 'Salem', 'Tamil Nadu', '636003', '9876543235', 'fashionhub@example.com', shop_owner_id, 'ACTIVE', 4.4, 20, '10:00:00', '20:00:00', false, 11.6688, 78.1422, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT DO NOTHING;
     END IF;
 
@@ -108,7 +108,7 @@ BEGIN
     SELECT COUNT(*) INTO user_count FROM users;
     SELECT COUNT(*) INTO establishment_count FROM establishments;
     
-    RAISE NOTICE '✅ Sample data inserted successfully!';
-    RAISE NOTICE '📊 Total users: %', user_count;
-    RAISE NOTICE '🏢 Total establishments: %', establishment_count;
+    RAISE NOTICE 'Sample data inserted successfully!';
+    RAISE NOTICE 'Total users: %', user_count;
+    RAISE NOTICE 'Total establishments: %', establishment_count;
 END $$;
