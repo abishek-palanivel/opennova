@@ -1,17 +1,15 @@
--- Fix UserRole enum values in database
--- This script updates any ROLE_* prefixed values to match the enum
+-- Fix user roles and ensure proper role constraints
 
--- Update user roles to match enum values
-UPDATE users SET role = 'USER' WHERE role = 'ROLE_USER';
-UPDATE users SET role = 'ADMIN' WHERE role = 'ROLE_ADMIN';
-UPDATE users SET role = 'OWNER' WHERE role = 'ROLE_OWNER';
-UPDATE users SET role = 'HOTEL_OWNER' WHERE role = 'ROLE_HOTEL_OWNER';
-UPDATE users SET role = 'HOSPITAL_OWNER' WHERE role = 'ROLE_HOSPITAL_OWNER';
-UPDATE users SET role = 'SHOP_OWNER' WHERE role = 'ROLE_SHOP_OWNER';
+-- Ensure role column has proper constraint
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check 
+    CHECK (role IN ('USER', 'OWNER', 'ADMIN'));
 
--- Ensure all users have valid roles
-UPDATE users SET role = 'USER' WHERE role NOT IN ('USER', 'ADMIN', 'OWNER', 'HOTEL_OWNER', 'HOSPITAL_OWNER', 'SHOP_OWNER');
+-- Update any invalid roles to USER
+UPDATE users SET role = 'USER' WHERE role NOT IN ('USER', 'OWNER', 'ADMIN');
 
--- Add constraint to ensure only valid roles
-ALTER TABLE users ADD CONSTRAINT check_user_role 
-CHECK (role IN ('USER', 'ADMIN', 'OWNER', 'HOTEL_OWNER', 'HOSPITAL_OWNER', 'SHOP_OWNER'));
+-- Ensure is_active column exists and has default value
+ALTER TABLE users ALTER COLUMN is_active SET DEFAULT true;
+UPDATE users SET is_active = true WHERE is_active IS NULL;
+
+SELECT 'User roles fixed successfully!' AS status;

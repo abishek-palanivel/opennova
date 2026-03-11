@@ -72,18 +72,20 @@ npm start
 
 Deploy to the internet for FREE using:
 - **Frontend**: Vercel (Free tier)
-- **Backend**: Render.com or Fly.io (Free tier) 
+- **Backend**: Fly.io (Free tier) 
 - **Database**: Neon.tech (Free tier)
 
 ### Quick Deploy
+```bash
+# Windows
+deploy.bat
 
-📖 **Full deployment guide**: See [SERVER_CONNECTION_GUIDE.md](SERVER_CONNECTION_GUIDE.md)
+# Linux/Mac
+./deploy-backend.sh
+./deploy-frontend.sh
+```
 
-**Quick Steps:**
-1. Create free database on [Neon.tech](https://neon.tech)
-2. Deploy backend on [Render.com](https://render.com)
-3. Deploy frontend on [Vercel](https://vercel.com)
-4. See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions
+📖 **Full deployment guide**: See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
 
 ## 🌟 Features
 
@@ -119,7 +121,7 @@ Deploy to the internet for FREE using:
 - **Secure Authentication**: JWT-based auth with role-based access control (RBAC)
 - **Email Notifications**: Automated booking confirmations and status updates
 - **QR Code Generation**: Digital booking confirmations with QR codes
-- **Payment Integration**: UPI payment system with establishment QR codes and transaction verification
+- **Payment Integration**: UPI payment support with QR codes
 - **File Upload**: Secure image upload for establishments and menus
 - **Review System**: Customer feedback with admin approval workflow
 - **Account Security**: Login attempt tracking and account lockout protection
@@ -147,18 +149,14 @@ setup.bat
 
 ## 💳 Payment Integration
 
-This project uses **UPI-based payment system** with QR code integration.
-
-**How it works:**
-- Establishment owners upload their UPI QR codes
-- Customers scan QR code and pay via any UPI app (Google Pay, PhonePe, Paytm)
-- System verifies payment using UPI transaction ID
-- 70% advance payment required, 30% paid on visit
+This project uses Razorpay for payment processing in test mode.
 
 **Setup Instructions:**
-1. Owners: Upload UPI QR code in Settings
-2. Customers: Scan QR, pay, and enter transaction ID
-3. See [PAYMENT_INTEGRATION.md](PAYMENT_INTEGRATION.md) for detailed guide
+1. Copy `.env.example` to `.env` in both backend and frontend
+2. Add your Razorpay test API keys to the `.env` files
+3. See [PAYMENT_INTEGRATION.md](PAYMENT_INTEGRATION.md) for detailed setup guide
+
+**Test Mode:** Use test cards and UPI IDs provided in the payment integration guide.
 
 ## 📚 Recent Updates
 

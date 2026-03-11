@@ -1,39 +1,67 @@
--- Add approval system for reviews
--- Reviews now require owner approval before being displayed to users
+-- Review approval and moderation system
 
--- Add approval status to reviews table
-ALTER TABLE reviews ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING';
-ALTER TABLE reviews ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
-ALTER TABLE reviews ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP;
-ALTER TABLE reviews ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+-- Ensure review status column exists with proper constraints
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'reviews' AND column_name = 'status'
+    ) THEN
+        ALTER TABLE reviews ADD COLUMN status VARCHAR(50) DEFAULT 'PENDING' 
+            CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'));
+    END IF;
+END $$;
 
--- Add index for better performance
+-- Add admin review tracking columns
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewed_by BIGINT REFERENCES users(id);
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+
+-- Create index for filtering by status
 CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 
--- Update existing reviews to be approved (for backward compatibility)
-UPDATE reviews SET status = 'APPROVED', approved_at = created_at WHERE status IS NULL OR status = 'PENDING';
+-- Function to update establishment rating when review is approved
+CREATE OR REPLACE FUNCTION update_establishment_rating()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'APPROVED' AND (OLD.status IS NULL OR OLD.status != 'APPROVED') THEN
+        UPDATE establishments
+        SET 
+            rating = (
+                SELECT COALESCE(AVG(rating), 0)
+                FROM reviews
+                WHERE establishment_id = NEW.establishment_id AND status = 'APPROVED'
+            ),
+            total_reviews = (
+                SELECT COUNT(*)
+                FROM reviews
+                WHERE establishment_id = NEW.establishment_id AND status = 'APPROVED'
+            )
+        WHERE id = NEW.establishment_id;
+    ELSIF OLD.status = 'APPROVED' AND NEW.status != 'APPROVED' THEN
+        UPDATE establishments
+        SET 
+            rating = (
+                SELECT COALESCE(AVG(rating), 0)
+                FROM reviews
+                WHERE establishment_id = NEW.establishment_id AND status = 'APPROVED'
+            ),
+            total_reviews = (
+                SELECT COUNT(*)
+                FROM reviews
+                WHERE establishment_id = NEW.establishment_id AND status = 'APPROVED'
+            )
+        WHERE id = NEW.establishment_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
--- Remove any default/sample reviews that should not be shown
-DELETE FROM reviews WHERE comment LIKE '%Default%' OR comment LIKE '%Sample%' OR comment LIKE '%Test%';
+-- Create trigger for automatic rating updates
+DROP TRIGGER IF EXISTS update_rating_on_review_approval ON reviews;
+CREATE TRIGGER update_rating_on_review_approval
+    AFTER INSERT OR UPDATE ON reviews
+    FOR EACH ROW
+    EXECUTE FUNCTION update_establishment_rating();
 
--- Ensure only owner-created content is displayed by removing default data
-DELETE FROM menus WHERE name LIKE '%Default%' OR name LIKE '%Sample%' OR description LIKE '%Default%';
-DELETE FROM doctors WHERE name LIKE '%Default%' OR name LIKE '%Sample%' OR specialization LIKE '%Default%';
-DELETE FROM collections WHERE item_name LIKE '%Default%' OR item_name LIKE '%Sample%' OR brand LIKE '%Default%';
-
--- Update menu table to use image_path instead of image_url
-ALTER TABLE menus DROP COLUMN IF EXISTS image_url;
-ALTER TABLE menus ADD COLUMN IF NOT EXISTS image_path VARCHAR(500);
-
--- Update doctors table to use image_path instead of image_url  
-ALTER TABLE doctors DROP COLUMN IF EXISTS image_url;
-ALTER TABLE doctors ADD COLUMN IF NOT EXISTS image_path VARCHAR(500);
-
--- Update collections table to use image_path instead of image_url
-ALTER TABLE collections DROP COLUMN IF EXISTS image_url;
-ALTER TABLE collections ADD COLUMN IF NOT EXISTS image_path VARCHAR(500);
-
--- Add indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_menus_image_path ON menus(image_path);
-CREATE INDEX IF NOT EXISTS idx_doctors_image_path ON doctors(image_path);
-CREATE INDEX IF NOT EXISTS idx_collections_image_path ON collections(image_path);
+SELECT 'Review approval system created successfully!' AS status;

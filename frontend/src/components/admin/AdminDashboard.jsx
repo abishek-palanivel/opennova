@@ -8,7 +8,6 @@ import { getImageUrl } from '../../utils/imageUtils';
 import ChatManagement from './ChatManagement';
 import ChatErrorBoundary from '../common/ChatErrorBoundary';
 import AnalyticsDashboard from './AnalyticsDashboard';
-import AnalyticsTest from './AnalyticsTest';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -185,11 +184,20 @@ const AdminDashboard = () => {
 
   const fetchEstablishments = async () => {
     try {
+      console.log('🔄 Fetching establishments from /api/admin/establishments...');
       const response = await api.get('/api/admin/establishments');
-      setEstablishments(response.data);
+      console.log('✅ Establishments response:', response.data);
+      
+      // Ensure we have an array
+      const establishmentsData = Array.isArray(response.data) ? response.data : [];
+      console.log('📊 Total establishments fetched:', establishmentsData.length);
+      setEstablishments(establishmentsData);
     } catch (error) {
-      console.error('Failed to fetch establishments:', error);
-      // Don't logout on 401 for admin endpoints, might be permission issue
+      console.error('❌ Failed to fetch establishments:', error);
+      console.error('Error details:', error.response?.data);
+      console.error('Status:', error.response?.status);
+      
+      // Don't logout on 401 for admin endpoints
       if (error.response?.status === 401 && !error.response?.data?.message?.includes('Access denied')) {
         const hasToken = localStorage.getItem('token');
         if (!hasToken) {
@@ -197,7 +205,9 @@ const AdminDashboard = () => {
           return;
         }
       }
-      setEstablishments(mockEstablishments);
+      
+      // Show empty state on error
+      setEstablishments([]);
     }
   };
 
@@ -262,12 +272,26 @@ const AdminDashboard = () => {
       console.log('🔄 Fetching users from /api/admin/users...');
       const response = await api.get('/api/admin/users');
       console.log('✅ Users response:', response.data);
-      setUsers(response.data || []);
+      
+      // Ensure we have an array
+      const usersData = Array.isArray(response.data) ? response.data : [];
+      console.log('📊 Total users fetched:', usersData.length);
+      setUsers(usersData);
     } catch (error) {
       console.error('❌ Failed to fetch users:', error);
       console.error('Error details:', error.response?.data);
       console.error('Status:', error.response?.status);
-      // Don't use mock data - show empty state instead
+      
+      // Don't logout on 401 for admin endpoints
+      if (error.response?.status === 401 && !error.response?.data?.message?.includes('Access denied')) {
+        const hasToken = localStorage.getItem('token');
+        if (!hasToken) {
+          logout();
+          return;
+        }
+      }
+      
+      // Show empty state on error
       setUsers([]);
     }
   };
@@ -798,7 +822,6 @@ const AdminDashboard = () => {
           <TabButton id="locations" label="Locations" icon="📍" />
           <TabButton id="users" label="User Management" icon="👥" />
           <TabButton id="chat" label="Chat Support" icon="💬" />
-          <TabButton id="test" label="API Test" icon="🧪" />
         </div>
 
         {/* Dashboard Tab */}
@@ -1349,11 +1372,6 @@ const AdminDashboard = () => {
               <ChatManagement />
             </ChatErrorBoundary>
           </div>
-        )}
-
-        {/* API Test Tab */}
-        {activeTab === 'test' && (
-          <AnalyticsTest />
         )}
 
         {/* Establishment Modal */}

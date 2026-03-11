@@ -1,39 +1,46 @@
--- Chat system tables
--- Run this after all previous migrations
+-- Chat messaging system for bookings
 
--- Create message_type enum
-DO $$ BEGIN
-    CREATE TYPE message_type AS ENUM ('TEXT', 'IMAGE', 'FILE');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
--- Create chat_messages table
+-- Create chat_messages table if it doesn't exist
 CREATE TABLE IF NOT EXISTS chat_messages (
     id BIGSERIAL PRIMARY KEY,
-    sender_id BIGINT NOT NULL,
-    recipient_id BIGINT,
+    booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     message TEXT NOT NULL,
-    chat_room_id VARCHAR(255) NOT NULL,
-    message_type message_type DEFAULT 'TEXT',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_read BOOLEAN DEFAULT FALSE,
-    
-    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_room_id ON chat_messages(chat_room_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_sender_id ON chat_messages(sender_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_recipient_id ON chat_messages(recipient_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_is_read ON chat_messages(is_read);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_booking ON chat_messages(booking_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON chat_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
 
--- Add some sample data for testing
--- This will be populated when users start chatting
+-- Function to mark messages as read
+CREATE OR REPLACE FUNCTION mark_messages_as_read(p_booking_id BIGINT, p_user_id BIGINT)
+RETURNS void AS $$
+BEGIN
+    UPDATE chat_messages
+    SET is_read = true
+    WHERE booking_id = p_booking_id 
+    AND sender_id != p_user_id 
+    AND is_read = false;
+END;
+$$ LANGUAGE plpgsql;
 
-COMMENT ON TABLE chat_messages IS 'Stores chat messages between users and support staff';
-COMMENT ON COLUMN chat_messages.chat_room_id IS 'Unique identifier for chat room (usually email1_email2)';
-COMMENT ON COLUMN chat_messages.message_type IS 'Type of message: TEXT, IMAGE, or FILE';
-COMMENT ON COLUMN chat_messages.is_read IS 'Whether the message has been read by the recipient';
+-- Function to get unread message count
+CREATE OR REPLACE FUNCTION get_unread_count(p_booking_id BIGINT, p_user_id BIGINT)
+RETURNS INTEGER AS $$
+DECLARE
+    unread_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO unread_count
+    FROM chat_messages
+    WHERE booking_id = p_booking_id 
+    AND sender_id != p_user_id 
+    AND is_read = false;
+    
+    RETURN unread_count;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT 'Chat system created successfully!' AS status;

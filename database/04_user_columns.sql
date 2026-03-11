@@ -1,11 +1,26 @@
--- Add missing columns to users table
--- These columns are expected by the User model but missing from the schema
+-- Add user-related columns
 
--- Add reset_token column if it doesn't exist
-ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
+-- Add profile image support
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(500);
 
--- Add establishment_type column if it doesn't exist  
-ALTER TABLE users ADD COLUMN IF NOT EXISTS establishment_type VARCHAR(100);
+-- Add account status tracking
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 
--- Add reset_token_expiry column if it doesn't exist
-ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP;
+-- Add timestamps if missing
+ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+-- Create trigger to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+SELECT 'User columns added successfully!' AS status;
