@@ -53,6 +53,12 @@ backend/.env
 frontend/.env
 render-environment-variables.txt
 
+# Database Setup Files with Credentials
+setup-neon-database.bat
+NEON_DATABASE_SETUP.md
+*-credentials.txt
+*-connection.txt
+
 # Temporary Files
 *.tmp
 *.temp
