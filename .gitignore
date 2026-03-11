@@ -43,14 +43,15 @@ yarn-error.log*
 *.seed
 *.pid.lock
 
-# Environment Files
+# Environment Files (NEVER commit these!)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+backend/.env
+frontend/.env
 render-environment-variables.txt
-*.txt
 
 # Temporary Files
 *.tmp
