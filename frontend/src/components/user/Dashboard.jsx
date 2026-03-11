@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalBookings: 0,
     activeBookings: 0,
@@ -20,7 +22,6 @@ const Dashboard = () => {
   const [recentActivity, setRecentActivity] = useState([]);
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [testingEmail, setTestingEmail] = useState(false);
 
   useEffect(() => {
     fetchUserStats();
@@ -72,52 +73,6 @@ const Dashboard = () => {
       setRecentBookings([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const testEmailFunctionality = async () => {
-    setTestingEmail(true);
-    try {
-      console.log('🧪 Testing email functionality...');
-      const response = await api.post('/api/user/test-email');
-      console.log('✅ Test email response:', response.data);
-      
-      if (response.data.success) {
-        alert('✅ Test email sent successfully! Check your email inbox.');
-      } else {
-        alert('❌ Test email failed: ' + response.data.message);
-      }
-    } catch (error) {
-      console.error('❌ Test email error:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to send test email';
-      alert('❌ Test email failed: ' + errorMessage);
-    } finally {
-      setTestingEmail(false);
-    }
-  };
-
-  const testFraudScenario = async (scenario) => {
-    try {
-      console.log('🚨 Testing fraud scenario:', scenario);
-      const response = await api.post('/api/payment/test-fraud-detection', {
-        scenario: scenario
-      });
-      
-      const result = response.data;
-      
-      let message = `🧪 FRAUD DETECTION TEST RESULT:\n\n`;
-      message += `Scenario: ${scenario.replace('_', ' ').toUpperCase()}\n`;
-      message += `Transaction ID: ${result.transactionId}\n`;
-      message += `User Claim: ${result.userClaim}\n`;
-      message += `Actual Payment: ${result.actualPayment}\n`;
-      message += `Result: ${result.result}\n\n`;
-      message += `${result.explanation}`;
-      
-      alert(message);
-      
-    } catch (error) {
-      console.error('❌ Fraud test error:', error);
-      alert('❌ Fraud detection test failed: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -347,7 +302,10 @@ const Dashboard = () => {
           <div className="text-4xl mb-4">🔍</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Browse Establishments</h3>
           <p className="text-gray-600 mb-4">Discover hotels, hospitals, and shops near you</p>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          <button 
+            onClick={() => navigate('/user/browse')}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
             Start Browsing
           </button>
         </div>
@@ -356,7 +314,10 @@ const Dashboard = () => {
           <div className="text-4xl mb-4">📝</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Request New Establishment</h3>
           <p className="text-gray-600 mb-4">Can't find what you're looking for? Request it!</p>
-          <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+          <button 
+            onClick={() => navigate('/user/request')}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+          >
             Make Request
           </button>
         </div>
@@ -365,98 +326,14 @@ const Dashboard = () => {
           <div className="text-4xl mb-4">⭐</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Write Reviews</h3>
           <p className="text-gray-600 mb-4">Share your experiences with others</p>
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+          <button 
+            onClick={() => navigate('/user/reviews')}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+          >
             View Reviews
           </button>
         </div>
       </div>
-
-      {/* Email Test Section */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-yellow-900 mb-2">📧 Email System Test</h3>
-            <p className="text-yellow-800 text-sm">
-              Test if you're receiving booking confirmation emails properly. 
-              This will send a test email to <strong>{user?.email}</strong>
-            </p>
-          </div>
-          <button
-            onClick={testEmailFunctionality}
-            disabled={testingEmail}
-            className="bg-yellow-600 text-white px-6 py-3 rounded-lg hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
-          >
-            {testingEmail ? (
-              <span className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Sending...
-              </span>
-            ) : (
-              '🧪 Send Test Email'
-            )}
-          </button>
-        </div>
-        <div className="mt-4 text-xs text-yellow-700">
-          <p>• If you receive the test email, booking confirmations should work</p>
-          <p>• Check your spam folder if you don't see the email</p>
-          <p>• Contact support if test email fails</p>
-        </div>
-      </div>
-
-      {/* Fraud Detection Test Section */}
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-red-900 mb-2">🚨 Payment Fraud Detection Test</h3>
-          <p className="text-red-800 text-sm mb-4">
-            Test how the system detects payment fraud scenarios. This demonstrates bank verification.
-          </p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <button
-              onClick={() => testFraudScenario('honest_payment')}
-              className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors text-sm"
-            >
-              ✅ Test Honest Payment
-              <div className="text-xs mt-1">User pays ₹30, claims ₹30</div>
-            </button>
-            
-            <button
-              onClick={() => testFraudScenario('underpayment_fraud')}
-              className="w-full bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors text-sm"
-            >
-              ❌ Test Underpayment Fraud
-              <div className="text-xs mt-1">User pays ₹20, claims ₹30</div>
-            </button>
-          </div>
-          
-          <div className="space-y-3">
-            <button
-              onClick={() => testFraudScenario('overpayment')}
-              className="w-full bg-orange-600 text-white px-4 py-3 rounded-lg hover:bg-orange-700 transition-colors text-sm"
-            >
-              ⚠️ Test Overpayment
-              <div className="text-xs mt-1">User pays ₹35, claims ₹30</div>
-            </button>
-            
-            <button
-              onClick={() => testFraudScenario('fake_transaction')}
-              className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition-colors text-sm"
-            >
-              🚫 Test Fake Transaction
-              <div className="text-xs mt-1">User provides fake transaction ID</div>
-            </button>
-          </div>
-        </div>
-        
-        <div className="mt-4 text-xs text-red-700">
-          <p>• These tests show how bank verification catches fraud</p>
-          <p>• In production, this connects to real bank APIs</p>
-          <p>• System compares user claims vs actual bank records</p>
-        </div>
-      </div>
-
 
     </div>
   );
