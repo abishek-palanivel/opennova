@@ -72,20 +72,18 @@ npm start
 
 Deploy to the internet for FREE using:
 - **Frontend**: Vercel (Free tier)
-- **Backend**: Fly.io (Free tier) 
+- **Backend**: Render.com or Fly.io (Free tier) 
 - **Database**: Neon.tech (Free tier)
 
 ### Quick Deploy
-```bash
-# Windows
-deploy.bat
 
-# Linux/Mac
-./deploy-backend.sh
-./deploy-frontend.sh
-```
+📖 **Full deployment guide**: See [SERVER_CONNECTION_GUIDE.md](SERVER_CONNECTION_GUIDE.md)
 
-📖 **Full deployment guide**: See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+**Quick Steps:**
+1. Create free database on [Neon.tech](https://neon.tech)
+2. Deploy backend on [Render.com](https://render.com)
+3. Deploy frontend on [Vercel](https://vercel.com)
+4. See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions
 
 ## 🌟 Features
 
