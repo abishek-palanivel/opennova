@@ -66,6 +66,11 @@ public class ReviewService {
             establishmentId, com.opennova.model.ReviewStatus.APPROVED);
     }
 
+    public List<Review> getReviewsByEstablishmentId(Long establishmentId) {
+        // For owner portal, return all reviews (approved, pending, rejected)
+        return reviewRepository.findByEstablishmentIdOrderByCreatedAtDesc(establishmentId);
+    }
+
     public List<Review> getPendingReviewsForOwner(Long ownerId) {
         // Get pending reviews for owner approval
         return reviewRepository.findByEstablishmentOwnerIdAndStatusOrderByCreatedAtDesc(
@@ -272,5 +277,74 @@ public class ReviewService {
             System.err.println("Failed to get reviews for admin: " + e.getMessage());
             return new java.util.ArrayList<>();
         }
+    }
+
+    // Admin analytics methods
+    public long getPendingReviewsCount() {
+        return reviewRepository.countByStatus(com.opennova.model.ReviewStatus.PENDING);
+    }
+
+    public double getAverageRating() {
+        try {
+            List<Review> approvedReviews = reviewRepository.findByStatus(com.opennova.model.ReviewStatus.APPROVED);
+            if (approvedReviews.isEmpty()) {
+                return 0.0;
+            }
+            double sum = approvedReviews.stream().mapToInt(Review::getRating).sum();
+            return sum / approvedReviews.size();
+        } catch (Exception e) {
+            System.err.println("Error calculating average rating: " + e.getMessage());
+            return 0.0;
+        }
+    }
+
+    public Review approveReview(Long id) {
+        try {
+            Optional<Review> reviewOpt = reviewRepository.findById(id);
+            if (reviewOpt.isPresent()) {
+                Review review = reviewOpt.get();
+                review.setStatus(com.opennova.model.ReviewStatus.APPROVED);
+                review.setApprovedAt(LocalDateTime.now());
+                return reviewRepository.save(review);
+            }
+            return null;
+        } catch (Exception e) {
+            System.err.println("Error approving review: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public Review rejectReview(Long id, String reason) {
+        try {
+            Optional<Review> reviewOpt = reviewRepository.findById(id);
+            if (reviewOpt.isPresent()) {
+                Review review = reviewOpt.get();
+                review.setStatus(com.opennova.model.ReviewStatus.REJECTED);
+                review.setRejectedAt(LocalDateTime.now());
+                review.setRejectionReason(reason);
+                return reviewRepository.save(review);
+            }
+            return null;
+        } catch (Exception e) {
+            System.err.println("Error rejecting review: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public boolean deleteReview(Long id) {
+        try {
+            if (reviewRepository.existsById(id)) {
+                reviewRepository.deleteById(id);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            System.err.println("Error deleting review: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    public List<Review> findByEstablishmentId(Long establishmentId) {
+        return getReviewsByEstablishmentId(establishmentId);
     }
 }

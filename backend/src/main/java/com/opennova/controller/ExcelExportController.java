@@ -59,9 +59,12 @@ public class ExcelExportController {
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm")) + ".xlsx";
             
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
             headers.setContentDispositionFormData("attachment", filename);
             headers.setContentLength(excelData.length);
+            
+            System.out.println("📊 Excel export successful for owner: " + owner.getEmail() + 
+                             " File: " + filename + " Size: " + excelData.length + " bytes");
             
             return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
         } catch (Exception e) {

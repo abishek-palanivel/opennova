@@ -30,17 +30,27 @@ public class Establishment {
 
     @NotBlank
     @Size(max = 100)
-    private String email;
+    private String city;
 
     @NotBlank
+    @Size(max = 100)
+    private String state;
+
+    @NotBlank
+    @Size(max = 10)
+    private String pincode;
+
+    @Size(max = 100)
+    private String email;
+
     @Size(max = 255)
     private String password;
 
     @Enumerated(EnumType.STRING)
     private EstablishmentStatus status = EstablishmentStatus.OPEN;
 
-    @Column(name = "contact_number")
-    private String contactNumber;
+    @Column(name = "phone_number")
+    private String phoneNumber;
 
     @Column(name = "latitude")
     private Double latitude;
@@ -100,10 +110,13 @@ public class Establishment {
     // Constructors
     public Establishment() {}
 
-    public Establishment(String name, EstablishmentType type, String address, String email, String password) {
+    public Establishment(String name, EstablishmentType type, String address, String city, String state, String pincode, String email, String password) {
         this.name = name;
         this.type = type;
         this.address = address;
+        this.city = city;
+        this.state = state;
+        this.pincode = pincode;
         this.email = email;
         this.password = password;
     }
@@ -121,6 +134,15 @@ public class Establishment {
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
 
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+
+    public String getPincode() { return pincode; }
+    public void setPincode(String pincode) { this.pincode = pincode; }
+
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
@@ -130,8 +152,8 @@ public class Establishment {
     public EstablishmentStatus getStatus() { return status; }
     public void setStatus(EstablishmentStatus status) { this.status = status; }
 
-    public String getContactNumber() { return contactNumber; }
-    public void setContactNumber(String contactNumber) { this.contactNumber = contactNumber; }
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
 
     public Double getLatitude() { return latitude; }
     public void setLatitude(Double latitude) { this.latitude = latitude; }
@@ -186,3 +208,6 @@ public class Establishment {
         this.updatedAt = LocalDateTime.now();
     }
 }
+
+
+

@@ -39,6 +39,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (requestPath.startsWith("/api/public/") || 
             requestPath.startsWith("/api/chat/guest/") ||
             requestPath.startsWith("/api/files/") ||
+            requestPath.equals("/error") ||
+            requestPath.equals("/favicon.ico") ||
             (requestPath.startsWith("/api/auth/") && !requestPath.equals("/api/auth/profile"))) {
             chain.doFilter(request, response);
             return;
@@ -48,20 +50,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String username = null;
         String jwtToken = null;
+        boolean tokenValid = false;
 
         // JWT Token is in the form "Bearer token". Remove Bearer word and get only the Token
         if (requestTokenHeader != null && requestTokenHeader.startsWith("Bearer ")) {
             jwtToken = requestTokenHeader.substring(7);
             try {
-                username = jwtUtil.extractUsername(jwtToken);
+                // First validate token format and signature
+                if (jwtUtil.validateToken(jwtToken)) {
+                    username = jwtUtil.extractUsername(jwtToken);
+                    tokenValid = true;
+                } else {
+                    logger.warn("Invalid JWT token format or signature");
+                    SecurityContextHolder.clearContext();
+                }
             } catch (Exception e) {
-                logger.warn("Failed to extract username from JWT token: " + e.getMessage());
+                logger.warn("Failed to process JWT token: " + e.getMessage());
                 SecurityContextHolder.clearContext();
             }
+        } else if (requestPath.equals("/api/auth/profile")) {
+            // Profile endpoint requires authentication but no token provided
+            logger.warn("No Authorization header found for protected endpoint: " + requestPath);
         }
 
         // Once we get the token validate it.
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (username != null && tokenValid && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
@@ -75,6 +88,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // that the current user is authenticated. So it passes the
                     // Spring Security Configurations successfully.
                     SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+                    logger.debug("Successfully authenticated user: " + username);
+                } else {
+                    logger.warn("Token validation failed for user: " + username);
+                    SecurityContextHolder.clearContext();
                 }
             } catch (Exception e) {
                 logger.warn("Failed to authenticate user: " + username + " - " + e.getMessage());

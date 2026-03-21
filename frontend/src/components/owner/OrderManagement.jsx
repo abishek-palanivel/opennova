@@ -10,6 +10,8 @@ const OrderManagement = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -73,6 +75,68 @@ const OrderManagement = () => {
       console.error('Error marking visit as completed:', error);
       alert('Failed to mark visit as completed: ' + (error.response?.data?.message || error.message));
     }
+  };
+
+  const cancelBooking = async (bookingId, reason) => {
+    if (!reason || reason.trim().length < 10) {
+      alert('Please provide a detailed reason for cancellation (minimum 10 characters)');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to cancel this booking? The customer will be notified and receive a full refund.')) {
+      return;
+    }
+
+    try {
+      const response = await api.put(`/api/owner/orders/${bookingId}/cancel`, {
+        reason: reason.trim()
+      });
+
+      if (response.data.success) {
+        alert('Booking cancelled successfully! Customer has been notified and will receive full refund.');
+        fetchOrders(); // Refresh the orders list
+        fetchStats(); // Refresh statistics
+      } else {
+        alert('Failed to cancel booking: ' + (response.data.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      alert('Failed to cancel booking: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleCancelBooking = (order) => {
+    const reason = prompt(
+      `Cancel booking for ${order.customerName}?\n\n` +
+      `Booking Details:\n` +
+      `- Date: ${order.visitingDate} at ${order.visitingTime}\n` +
+      `- Amount: ₹${(order.amount || 0).toFixed(2)}\n\n` +
+      `Please provide a detailed reason for cancellation:`
+    );
+    
+    if (reason !== null) { // User didn't click Cancel
+      cancelBooking(order.id, reason);
+    }
+  };
+
+  const canCancelBooking = (order) => {
+    // Can cancel if booking is PENDING or CONFIRMED, but not CANCELLED or COMPLETED
+    return order.status === 'PENDING' || order.status === 'CONFIRMED';
+  };
+
+  const canMarkVisitCompleted = (order) => {
+    // Can mark as completed if booking is CONFIRMED
+    return order.status === 'CONFIRMED';
+  };
+
+  const handleViewDetails = (order) => {
+    setSelectedOrder(order);
+    setShowDetailsModal(true);
+  };
+
+  const closeDetailsModal = () => {
+    setSelectedOrder(null);
+    setShowDetailsModal(false);
   };
 
   const getFilteredOrders = () => {
@@ -268,11 +332,12 @@ const OrderManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items Ordered</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Details</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -291,6 +356,19 @@ const OrderManagement = () => {
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{order.customerName || 'Unknown'}</div>
                           <div className="text-sm text-gray-500">{order.customerEmail || 'No email'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900 max-w-xs">
+                        <div className="font-medium text-gray-800 mb-1">
+                          {order.establishmentType === 'HOTEL' && '🏨 Hotel Items:'}
+                          {order.establishmentType === 'HOSPITAL' && '🏥 Medical Services:'}
+                          {order.establishmentType === 'SHOP' && '🛍️ Shop Items:'}
+                          {!order.establishmentType && '📦 Items:'}
+                        </div>
+                        <div className="text-gray-600 text-xs leading-relaxed">
+                          {order.itemsDisplay || order.selectedItems || 'No items specified'}
                         </div>
                       </div>
                     </td>
@@ -339,18 +417,44 @@ const OrderManagement = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {order.status === 'CONFIRMED' ? (
+                      <div className="flex gap-2 flex-wrap">
+                        {canMarkVisitCompleted(order) && (
+                          <button
+                            onClick={() => markVisitCompleted(order.id)}
+                            className="bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors text-xs"
+                          >
+                            ✓ Mark Visited
+                          </button>
+                        )}
+                        
+                        {canCancelBooking(order) && (
+                          <button
+                            onClick={() => handleCancelBooking(order)}
+                            className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors text-xs"
+                          >
+                            ✕ Cancel
+                          </button>
+                        )}
+                        
                         <button
-                          onClick={() => markVisitCompleted(order.id)}
-                          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                          onClick={() => handleViewDetails(order)}
+                          className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors text-xs"
                         >
-                          Mark Visited
+                          👁 View Details
                         </button>
-                      ) : order.status === 'COMPLETED' ? (
-                        <span className="text-green-600 font-medium">✓ Completed</span>
-                      ) : (
-                        <span className="text-gray-400">No action needed</span>
-                      )}
+                        
+                        {order.status === 'COMPLETED' && (
+                          <span className="text-green-600 font-medium text-xs">✓ Completed</span>
+                        )}
+                        
+                        {order.status === 'CANCELLED' && (
+                          <span className="text-red-600 font-medium text-xs">✕ Cancelled</span>
+                        )}
+                        
+                        {!canMarkVisitCompleted(order) && !canCancelBooking(order) && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                          <span className="text-gray-400 text-xs">No actions available</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -360,24 +464,183 @@ const OrderManagement = () => {
         )}
       </div>
 
-      {/* Visit Completion Rate */}
-      {stats.visitCompletionRate !== undefined && (
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Visit Completion Rate</h3>
-          <div className="flex items-center">
-            <div className="flex-1 bg-gray-200 rounded-full h-4 mr-4">
-              <div 
-                className="bg-gradient-to-r from-green-500 to-green-600 h-4 rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(stats.visitCompletionRate, 100)}%` }}
-              ></div>
+      {/* Order Details Modal */}
+      {showDetailsModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Modal Header */}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Booking Details</h2>
+                <button
+                  onClick={closeDetailsModal}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Customer Information */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                  <span className="mr-2">👤</span>Customer Information
+                </h3>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Name:</span>
+                    <span className="font-medium">{selectedOrder.customerName || 'Unknown'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Email:</span>
+                    <span className="font-medium">{selectedOrder.customerEmail || 'No email'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Phone:</span>
+                    <span className="font-medium">{selectedOrder.customerPhone || 'Not provided'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Visit Information */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                  <span className="mr-2">📅</span>Visit Information
+                </h3>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Date:</span>
+                    <span className="font-medium">
+                      {selectedOrder.visitingDate ? new Date(selectedOrder.visitingDate).toLocaleDateString() : 'No date'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Time:</span>
+                    <span className="font-medium">{selectedOrder.visitingTime || 'No time'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Duration:</span>
+                    <span className="font-medium">2 hours</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Information */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                  <span className="mr-2">💰</span>Payment Information
+                </h3>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Amount:</span>
+                    <span className="font-medium text-lg">₹{(selectedOrder.amount || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Paid Amount (70%):</span>
+                    <span className="font-medium text-green-600">₹{(selectedOrder.paymentAmount || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Remaining (30%):</span>
+                    <span className="font-medium text-orange-600">
+                      ₹{((selectedOrder.amount || 0) - (selectedOrder.paymentAmount || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Transaction ID:</span>
+                    <span className="font-mono text-sm bg-white px-2 py-1 rounded">
+                      {selectedOrder.transactionId || 'No transaction ID'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Payment Status:</span>
+                    <span className={`px-2 py-1 rounded text-sm font-medium ${
+                      selectedOrder.paymentStatus === 'PAID' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {selectedOrder.paymentStatus || 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Booking Status */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                  <span className="mr-2">📋</span>Booking Status
+                </h3>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Current Status:</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedOrder)}`}>
+                      {getStatusText(selectedOrder)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Booking ID:</span>
+                    <span className="font-mono text-sm">#{selectedOrder.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Created:</span>
+                    <span className="font-medium">
+                      {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString() : 'Unknown'}
+                    </span>
+                  </div>
+                  {selectedOrder.confirmedAt && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Confirmed:</span>
+                      <span className="font-medium">
+                        {new Date(selectedOrder.confirmedAt).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Items Ordered */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                  <span className="mr-2">🛍️</span>Items Ordered
+                </h3>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-gray-700 leading-relaxed">
+                    {selectedOrder.itemsDisplay || selectedOrder.selectedItems || 'No items specified'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 justify-end">
+                {canMarkVisitCompleted(selectedOrder) && (
+                  <button
+                    onClick={() => {
+                      markVisitCompleted(selectedOrder.id);
+                      closeDetailsModal();
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    ✓ Mark Visited
+                  </button>
+                )}
+                
+                {canCancelBooking(selectedOrder) && (
+                  <button
+                    onClick={() => {
+                      handleCancelBooking(selectedOrder);
+                      closeDetailsModal();
+                    }}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    ✕ Cancel Booking
+                  </button>
+                )}
+                
+                <button
+                  onClick={closeDetailsModal}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
-            <span className="text-lg font-semibold text-gray-900">
-              {(stats.visitCompletionRate || 0).toFixed(1)}%
-            </span>
           </div>
-          <p className="text-sm text-gray-600 mt-2">
-            {stats.completedVisits} out of {stats.confirmedBookings} paid bookings have been completed
-          </p>
         </div>
       )}
     </div>

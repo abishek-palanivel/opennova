@@ -35,23 +35,39 @@ public class RealTimeUpdateService {
                 throw new RuntimeException("Unauthorized to update this establishment");
             }
             
-            // Update status
-            com.opennova.model.EstablishmentStatus establishmentStatus = 
-                com.opennova.model.EstablishmentStatus.valueOf(status.toUpperCase());
-            establishment.setStatus(establishmentStatus);
-            establishment.setUpdatedAt(LocalDateTime.now());
-            
-            // Save to database
-            establishmentRepository.save(establishment);
-            
-            // Update shared state for real-time sync
-            String stateKey = "establishment_" + establishmentId + "_status";
-            sharedStateService.setState(stateKey, status);
+            // Handle active/inactive status updates (not EstablishmentStatus enum)
+            if ("ACTIVE".equals(status) || "SUSPENDED".equals(status)) {
+                boolean isActive = "ACTIVE".equals(status);
+                establishment.setIsActive(isActive);
+                establishment.setUpdatedAt(LocalDateTime.now());
+                
+                // Save to database
+                establishmentRepository.save(establishment);
+                
+                // Update shared state for real-time sync
+                String stateKey = "establishment_" + establishmentId + "_active_status";
+                sharedStateService.setState(stateKey, status);
+                
+                System.out.println("Updated establishment " + establishmentId + " active status to: " + status);
+            } else {
+                // Handle EstablishmentStatus enum updates (OPEN, CLOSED, BUSY)
+                com.opennova.model.EstablishmentStatus establishmentStatus = 
+                    com.opennova.model.EstablishmentStatus.valueOf(status.toUpperCase());
+                establishment.setStatus(establishmentStatus);
+                establishment.setUpdatedAt(LocalDateTime.now());
+                
+                // Save to database
+                establishmentRepository.save(establishment);
+                
+                // Update shared state for real-time sync
+                String stateKey = "establishment_" + establishmentId + "_status";
+                sharedStateService.setState(stateKey, status);
+                
+                System.out.println("Updated establishment " + establishmentId + " status to: " + status);
+            }
             
             // Update cache
             lastUpdateCache.put(establishmentId, LocalDateTime.now());
-            
-            System.out.println("Updated establishment " + establishmentId + " status to: " + status);
             
         } catch (Exception e) {
             System.err.println("Failed to update establishment status: " + e.getMessage());

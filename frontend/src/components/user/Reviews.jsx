@@ -282,14 +282,24 @@ const Reviews = () => {
 
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
                   <div className="flex items-center space-x-4 text-sm text-slate-500">
-                    <span className="flex items-center">
-                      <span className="mr-1">👍</span>
-                      {review.helpfulCount || 0} helpful
-                    </span>
-                    <span className="flex items-center">
-                      <span className="mr-1">💬</span>
-                      {review.replyCount || 0} replies
-                    </span>
+                    {/* Only show helpful count if it exists and is > 0 */}
+                    {review.helpfulCount > 0 && (
+                      <span className="flex items-center">
+                        <span className="mr-1">👍</span>
+                        {review.helpfulCount} helpful
+                      </span>
+                    )}
+                    {/* Only show reply count if it exists and is > 0 */}
+                    {review.replyCount > 0 && (
+                      <span className="flex items-center">
+                        <span className="mr-1">💬</span>
+                        {review.replyCount} replies
+                      </span>
+                    )}
+                    {/* Show placeholder if no interactions */}
+                    {(!review.helpfulCount || review.helpfulCount === 0) && (!review.replyCount || review.replyCount === 0) && (
+                      <span className="text-slate-400 italic">No interactions yet</span>
+                    )}
                   </div>
                   
                   <div className="flex space-x-2">

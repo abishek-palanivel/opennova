@@ -1,17 +1,24 @@
 package com.opennova.controller;
 
 import com.opennova.service.PaymentVerificationService;
+import com.opennova.service.PaymentScreenshotService;
 import com.opennova.service.EstablishmentService;
 import com.opennova.service.UserService;
+import com.opennova.service.QRCodeService;
 import com.opennova.model.User;
 import com.opennova.model.Establishment;
+import com.opennova.model.PaymentVerification;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/payment")
@@ -22,10 +29,16 @@ public class PaymentController {
     private PaymentVerificationService paymentVerificationService;
     
     @Autowired
+    private PaymentScreenshotService paymentScreenshotService;
+    
+    @Autowired
     private EstablishmentService establishmentService;
     
     @Autowired
     private UserService userService;
+    
+    @Autowired
+    private QRCodeService qrCodeService;
 
     /**
      * Generate secure payment request
@@ -92,6 +105,16 @@ public class PaymentController {
                 paymentRequest.getTransactionRef()
             );
             response.put("upiUrl", upiUrl);
+            
+            // Generate payment QR code
+            try {
+                String paymentQRCode = qrCodeService.generatePaymentQRCode(upiUrl, amount, establishment.getName());
+                response.put("paymentQRCode", paymentQRCode);
+                System.out.println("✅ Generated payment QR code for amount: ₹" + amount);
+            } catch (Exception e) {
+                System.err.println("❌ Failed to generate payment QR code: " + e.getMessage());
+                // Continue without QR code - not critical for payment
+            }
             
             System.out.println("🔐 Generated payment request for user: " + user.getEmail() + 
                              " Amount: ₹" + amount + " Ref: " + paymentRequest.getTransactionRef());
@@ -291,61 +314,128 @@ public class PaymentController {
     }
     
     /**
-     * Test fraud detection scenarios - FOR DEMONSTRATION ONLY
+     * Submit payment verification with screenshot
      */
-    @PostMapping("/test-fraud-detection")
-    public ResponseEntity<?> testFraudDetection(@RequestBody Map<String, Object> testData, 
-                                              Authentication authentication) {
+    @PostMapping("/verify-with-screenshot")
+    public ResponseEntity<?> verifyPaymentWithScreenshot(
+            @RequestParam("transactionRef") String transactionRef,
+            @RequestParam("transactionId") String transactionId,
+            @RequestParam("amount") String amountStr,
+            @RequestParam("establishmentId") String establishmentIdStr,
+            @RequestParam(value = "screenshot", required = false) MultipartFile screenshot,
+            Authentication authentication) {
+        
         try {
-            String scenario = (String) testData.get("scenario");
-            Double expectedAmount = 30.0; // Test with ₹30
+            // Get authenticated user
+            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+            User user = userPrincipal.getUser();
+            
+            // Parse parameters
+            BigDecimal expectedAmount = new BigDecimal(amountStr);
+            Long establishmentId = Long.valueOf(establishmentIdStr);
+            
+            // Submit payment verification
+            PaymentVerification verification = paymentScreenshotService.submitPaymentVerification(
+                transactionRef, transactionId, user.getEmail(), establishmentId, expectedAmount, screenshot
+            );
             
             Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Payment verification submitted successfully. Owner will review and approve.");
+            response.put("verificationId", verification.getId());
+            response.put("status", verification.getStatus().toString());
+            response.put("hasScreenshot", verification.getScreenshotPath() != null);
             
-            switch (scenario) {
-                case "honest_payment":
-                    // User pays exactly ₹30 and claims ₹30
-                    response.put("transactionId", "ABC123DEF456");
-                    response.put("userClaim", "₹30.00");
-                    response.put("actualPayment", "₹30.00");
-                    response.put("result", "✅ APPROVED - Honest payment");
-                    break;
-                    
-                case "underpayment_fraud":
-                    // User pays ₹20 but claims ₹30
-                    response.put("transactionId", "FRAUD123ABC456");
-                    response.put("userClaim", "₹30.00");
-                    response.put("actualPayment", "₹20.00");
-                    response.put("result", "❌ FRAUD DETECTED - Insufficient payment");
-                    break;
-                    
-                case "overpayment":
-                    // User pays ₹35 but claims ₹30
-                    response.put("transactionId", "TEST123ABC456");
-                    response.put("userClaim", "₹30.00");
-                    response.put("actualPayment", "₹35.00");
-                    response.put("result", "❌ OVERPAYMENT - Refund required");
-                    break;
-                    
-                case "fake_transaction":
-                    // User provides fake transaction ID
-                    response.put("transactionId", "123456789012");
-                    response.put("userClaim", "₹30.00");
-                    response.put("actualPayment", "Transaction not found");
-                    response.put("result", "❌ FAKE TRANSACTION - Not found in bank records");
-                    break;
-                    
-                default:
-                    response.put("error", "Invalid test scenario");
-            }
-            
-            response.put("explanation", "This demonstrates how the system detects payment fraud by verifying actual amounts with bank records.");
+            System.out.println("📸 Payment verification with screenshot submitted: " + transactionRef + 
+                             " by user: " + user.getEmail() + " Amount: ₹" + expectedAmount);
             
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
+            System.err.println("❌ Screenshot verification error: " + e.getMessage());
+            e.printStackTrace();
             Map<String, String> error = new HashMap<>();
-            error.put("message", "Test fraud detection failed: " + e.getMessage());
+            error.put("message", "Screenshot verification failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+    
+    /**
+     * Get payment verification status
+     */
+    @GetMapping("/verification-status/{transactionRef}")
+    public ResponseEntity<?> getVerificationStatus(@PathVariable String transactionRef, 
+                                                 Authentication authentication) {
+        try {
+            // Get authenticated user
+            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+            User user = userPrincipal.getUser();
+            
+            Optional<PaymentVerification> verification = 
+                paymentScreenshotService.getVerificationByTransactionRef(transactionRef);
+            
+            if (verification.isEmpty()) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("found", false);
+                response.put("message", "Payment verification not found");
+                return ResponseEntity.ok(response);
+            }
+            
+            PaymentVerification v = verification.get();
+            
+            // Check if user owns this verification
+            if (!user.getEmail().equals(v.getUserEmail())) {
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Access denied");
+                return ResponseEntity.status(403).body(error);
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("found", true);
+            response.put("status", v.getStatus().toString());
+            response.put("transactionId", v.getTransactionId());
+            response.put("expectedAmount", v.getExpectedAmount());
+            response.put("hasScreenshot", v.getScreenshotPath() != null);
+            response.put("createdAt", v.getCreatedAt());
+            response.put("verifiedAt", v.getVerifiedAt());
+            response.put("ownerNotes", v.getOwnerNotes());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Get verification status error: " + e.getMessage());
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Failed to get verification status: " + e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+    
+    /**
+     * Get user's payment verifications
+     */
+    @GetMapping("/my-verifications")
+    public ResponseEntity<?> getMyVerifications(Authentication authentication) {
+        try {
+            // Get authenticated user
+            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+            User user = userPrincipal.getUser();
+            
+            List<PaymentVerification> verifications = 
+                paymentScreenshotService.getUserVerifications(user.getEmail());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("verifications", verifications);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Get user verifications error: " + e.getMessage());
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Failed to get verifications: " + e.getMessage());
             return ResponseEntity.badRequest().body(error);
         }
     }

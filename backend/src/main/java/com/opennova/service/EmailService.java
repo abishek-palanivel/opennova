@@ -8,8 +8,8 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import jakarta.activation.DataSource;
-import jakarta.mail.util.ByteArrayDataSource;
+import jakarta.mail.internet.MimeMessage;
+import java.math.BigDecimal;
 
 @Service
 public class EmailService {
@@ -25,43 +25,6 @@ public class EmailService {
         sendEmailSync(to, subject, body);
     }
     
-    /**
-     * Test email functionality
-     */
-    public void sendTestEmail(String to) {
-        try {
-            String subject = "🧪 OpenNova Email Test - System Working";
-            String body = String.format(
-                "Dear User,\n\n" +
-                "This is a test email to verify that the OpenNova email system is working correctly.\n\n" +
-                "✅ Email Configuration: WORKING\n" +
-                "✅ SMTP Connection: SUCCESSFUL\n" +
-                "✅ Email Delivery: CONFIRMED\n\n" +
-                "If you received this email, it means:\n" +
-                "• Your email address is valid\n" +
-                "• Our email server is configured correctly\n" +
-                "• Email notifications should work for bookings\n\n" +
-                "Test Details:\n" +
-                "• Sent from: %s\n" +
-                "• Sent to: %s\n" +
-                "• Timestamp: %s\n\n" +
-                "If you're experiencing issues with booking emails, please contact our support team.\n\n" +
-                "Best regards,\n" +
-                "OpenNova Technical Team\n" +
-                "📧 abishekopennova@gmail.com",
-                fromEmail,
-                to,
-                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
-            );
-            
-            sendEmailSync(to, subject, body);
-            System.out.println("✅ Test email sent successfully to: " + to);
-        } catch (Exception e) {
-            System.err.println("❌ Test email failed: " + e.getMessage());
-            throw new RuntimeException("Test email failed: " + e.getMessage());
-        }
-    }
-
     public void sendEmailSync(String to, String subject, String body) {
         try {
             System.out.println("📧 Attempting to send email to: " + to);
@@ -76,14 +39,33 @@ public class EmailService {
                 throw new RuntimeException("Sender email address is not configured");
             }
             
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(to.trim());
-            message.setSubject(subject);
-            message.setText(body);
+            // Check if body contains HTML
+            boolean isHtml = body.contains("<html>") || body.contains("<div>") || body.contains("<p>");
             
-            System.out.println("📤 Sending email via JavaMailSender...");
-            mailSender.send(message);
+            if (isHtml) {
+                // Send HTML email
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+                
+                helper.setFrom(fromEmail);
+                helper.setTo(to.trim());
+                helper.setSubject(subject);
+                helper.setText(body, true); // true indicates HTML content
+                
+                System.out.println("📤 Sending HTML email via JavaMailSender...");
+                mailSender.send(message);
+            } else {
+                // Send plain text email
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setFrom(fromEmail);
+                message.setTo(to.trim());
+                message.setSubject(subject);
+                message.setText(body);
+                
+                System.out.println("📤 Sending plain text email via JavaMailSender...");
+                mailSender.send(message);
+            }
+            
             System.out.println("✅ Email sent successfully to: " + to);
         } catch (Exception e) {
             System.err.println("❌ Failed to send email to " + to + ": " + e.getMessage());
@@ -92,1140 +74,805 @@ public class EmailService {
         }
     }
 
-    public void sendEmailWithQRAttachment(String to, String subject, String body, String qrCodeBase64, String fileName) {
-        try {
-            System.out.println("📧 Attempting to send email with QR attachment to: " + to);
-            
-            if (to == null || to.trim().isEmpty()) {
-                throw new RuntimeException("Recipient email address is required");
-            }
-            
-            if (fromEmail == null || fromEmail.trim().isEmpty()) {
-                throw new RuntimeException("Sender email address is not configured");
-            }
-
-            org.springframework.mail.javamail.MimeMessageHelper helper = 
-                new org.springframework.mail.javamail.MimeMessageHelper(mailSender.createMimeMessage(), true);
-            
-            helper.setFrom(fromEmail);
-            helper.setTo(to.trim());
-            helper.setSubject(subject);
-            helper.setText(body);
-            
-            try {
-                // Decode base64 QR code and attach as image
-                byte[] qrCodeBytes = java.util.Base64.getDecoder().decode(qrCodeBase64);
-                DataSource qrDataSource = new ByteArrayDataSource(qrCodeBytes, "image/png");
-                helper.addAttachment(fileName, qrDataSource);
-                
-                System.out.println("📤 Sending email with QR attachment via JavaMailSender...");
-                mailSender.send(helper.getMimeMessage());
-                System.out.println("✅ Email with QR attachment sent successfully to: " + to);
-            } catch (Exception attachmentError) {
-                System.err.println("⚠️ Failed to add QR attachment, sending without attachment: " + attachmentError.getMessage());
-                // Send without attachment if attachment fails
-                helper = new org.springframework.mail.javamail.MimeMessageHelper(mailSender.createMimeMessage(), false);
-                helper.setFrom(fromEmail);
-                helper.setTo(to.trim());
-                helper.setSubject(subject);
-                helper.setText(body + "\n\nQR Code Data: " + qrCodeBase64);
-                mailSender.send(helper.getMimeMessage());
-                System.out.println("✅ Email sent successfully without attachment to: " + to);
-            }
-        } catch (Exception e) {
-            System.err.println("❌ Failed to send email with QR attachment to " + to + ": " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Failed to send email with QR attachment: " + e.getMessage());
-        }
-    }
-
-
-
-    @Async
-    public void sendBookingConfirmation(String to, String establishmentName, String bookingDetails, String qrCodeData) {
-        String subject = "Booking Confirmation - " + establishmentName;
-        String body = "Dear Customer,\n\n" +
-                     "Your booking has been confirmed!\n\n" +
-                     "Establishment: " + establishmentName + "\n" +
-                     "Booking Details: " + bookingDetails + "\n\n" +
-                     "Please show the QR code below at the establishment:\n" +
-                     "QR Code: " + qrCodeData + "\n\n" +
-                     "Thank you for choosing OpenNova!\n\n" +
-                     "Best regards,\n" +
-                     "OpenNova Team";
-        
-        sendEmail(to, subject, body);
-    }
-
-    @Async
-    public void sendBookingConfirmationWithQR(com.opennova.model.Booking booking) {
-        try {
-            sendBookingQRCode(booking.getUserEmail(), booking, booking.getQrCode());
-        } catch (Exception e) {
-            System.err.println("Failed to send booking confirmation with QR: " + e.getMessage());
-        }
-    }
-
-    @Async
-    public void sendBookingRejection(com.opennova.model.Booking booking, String reason) {
-        try {
-            sendBookingRejection(booking.getUserEmail(), booking.getEstablishment().getName(), reason);
-        } catch (Exception e) {
-            System.err.println("Failed to send booking rejection: " + e.getMessage());
-        }
-    }
-
-    @Async
-    public void sendBookingRejection(String to, String establishmentName, String reason) {
-        String subject = "❌ Booking Rejected - " + establishmentName;
-        String body = String.format(
-            "Dear Customer,\n\n" +
-            "❌ We regret to inform you that your booking at %s has been rejected by the establishment.\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📋 REJECTION DETAILS\n" +
-            "═══════════════════════════════════════\n" +
-            "🏢 Establishment: %s\n" +
-            "❌ Rejection Reason: %s\n" +
-            "📅 Status: REJECTED\n\n" +
-            "═══════════════════════════════════════\n" +
-            "💰 REFUND INFORMATION\n" +
-            "═══════════════════════════════════════\n" +
-            "💳 Your full payment will be refunded within 24-48 hours\n" +
-            "📧 You'll receive a refund confirmation email\n" +
-            "🏦 Amount will be credited to your original payment method\n\n" +
-            "═══════════════════════════════════════\n" +
-            "🔄 NEXT STEPS\n" +
-            "═══════════════════════════════════════\n" +
-            "• Browse other similar establishments on OpenNova\n" +
-            "• Try booking for a different date/time\n" +
-            "• Contact the establishment directly for clarification\n" +
-            "• Reach out to our support team for assistance\n\n" +
-            "We sincerely apologize for any inconvenience caused. 🙏\n\n" +
-            "Our team is here to help you find the perfect booking!\n\n" +
-            "Best regards,\n" +
-            "OpenNova Team\n" +
-            "📧 abishekopennova@gmail.com\n" +
-            "🌐 www.opennova.com",
-            
-            establishmentName,
-            establishmentName,
-            reason
-        );
-        
-        sendEmail(to, subject, body);
-    }
-
-    @Async
-    public void sendRefundNotification(String to, String establishmentName, double amount) {
-        String subject = "Refund Processed - " + establishmentName;
-        String body = "Dear Customer,\n\n" +
-                     "Your refund has been processed successfully.\n\n" +
-                     "Establishment: " + establishmentName + "\n" +
-                     "Refund Amount: ₹" + amount + "\n\n" +
-                     "The amount will be credited to your account within 24 hours.\n\n" +
-                     "Thank you for your patience.\n\n" +
-                     "Best regards,\n" +
-                     "OpenNova Team";
-        
-        sendEmail(to, subject, body);
-    }
-
-
-
-    @Async
-    public void sendBookingQRCode(String to, com.opennova.model.Booking booking, String qrCodeData) {
-        try {
-            // Try to send with attachment first
-            sendBookingQRCodeWithAttachment(to, booking, qrCodeData);
-        } catch (Exception e) {
-            System.err.println("Failed to send QR code email with attachment, falling back to text: " + e.getMessage());
-            // Fallback to text-based QR code
-            sendBookingQRCodeAsText(to, booking, qrCodeData);
-        }
-    }
-
-    private void sendBookingQRCodeWithAttachment(String to, com.opennova.model.Booking booking, String qrCodeData) throws Exception {
-        String subject = "🎉 Booking Confirmed - QR Code for " + booking.getEstablishment().getName();
-        
-        // Parse selected items for detailed display
-        String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-        
-        String body = String.format(
-            "Dear %s,\n\n" +
-            "🎉 GREAT NEWS! Your booking has been confirmed by the establishment.\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📋 BOOKING DETAILS\n" +
-            "═══════════════════════════════════════\n" +
-            "🏢 Establishment: %s\n" +
-            "📅 Date: %s\n" +
-            "🕐 Time: %s\n" +
-            "⏱️ Duration: 2 hours\n" +
-            "🆔 Booking ID: #%d\n" +
-            "💳 Transaction ID: %s\n\n" +
-            "═══════════════════════════════════════\n" +
-            "🛍️ SELECTED ITEMS/SERVICES\n" +
-            "═══════════════════════════════════════\n" +
-            "%s\n" +
-            "═══════════════════════════════════════\n" +
-            "💰 PAYMENT SUMMARY\n" +
-            "═══════════════════════════════════════\n" +
-            "Total Amount: ₹%.2f\n" +
-            "Paid Amount (70%%): ₹%.2f ✅\n" +
-            "Remaining Amount (30%%): ₹%.2f\n" +
-            "Payment Status: CONFIRMED ✅\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📱 QR CODE ATTACHMENT\n" +
-            "═══════════════════════════════════════\n" +
-            "⚠️ IMPORTANT: Please show the attached QR code image at the establishment\n" +
-            "📎 Your QR code is attached as an image file to this email\n" +
-            "💾 Save the QR code image to your phone for easy access\n\n" +
-            "📍 VISIT INSTRUCTIONS:\n" +
-            "1. Arrive on time at the establishment\n" +
-            "2. Show the QR code image (attached) to the staff\n" +
-            "3. Pay the remaining 30%% amount (₹%.2f) at the venue\n" +
-            "4. Enjoy your 2-hour visit!\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📞 ESTABLISHMENT CONTACT\n" +
-            "═══════════════════════════════════════\n" +
-            "Address: %s\n" +
-            "Phone: %s\n" +
-            "Email: %s\n\n" +
-            "Need help? Contact our support team or reply to this email.\n\n" +
-            "Thank you for choosing OpenNova! 🙏\n\n" +
-            "Best regards,\n" +
-            "OpenNova Team\n" +
-            "📧 abishekopennova@gmail.com\n" +
-            "🌐 www.opennova.com",
-            
-            booking.getUser().getName(),
-            booking.getEstablishment().getName(),
-            booking.getVisitingDate(),
-            booking.getVisitingTime(),
-            booking.getId(),
-            booking.getTransactionId(),
-            itemsDetails,
-            booking.getAmount().doubleValue(),
-            booking.getPaymentAmount().doubleValue(),
-            booking.getAmount().doubleValue() - booking.getPaymentAmount().doubleValue(),
-            booking.getAmount().doubleValue() - booking.getPaymentAmount().doubleValue(),
-            booking.getEstablishment().getAddress() != null ? booking.getEstablishment().getAddress() : "Address not available",
-            booking.getEstablishment().getContactNumber() != null ? booking.getEstablishment().getContactNumber() : "Phone not available",
-            booking.getEstablishment().getEmail() != null ? booking.getEstablishment().getEmail() : "Email not available"
-        );
-        
-        // Send email with QR code as attachment
-        sendEmailWithQRAttachment(to, subject, body, qrCodeData, "booking-qr-" + booking.getId() + ".png");
-    }
-
-    private void sendBookingQRCodeAsText(String to, com.opennova.model.Booking booking, String qrCodeData) {
-        String subject = "🎉 Booking Confirmed - QR Code for " + booking.getEstablishment().getName();
-        
-        // Parse selected items for detailed display
-        String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-        
-        String body = String.format(
-            "Dear %s,\n\n" +
-            "🎉 GREAT NEWS! Your booking has been confirmed by the establishment.\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📋 BOOKING DETAILS\n" +
-            "═══════════════════════════════════════\n" +
-            "🏢 Establishment: %s\n" +
-            "📅 Date: %s\n" +
-            "🕐 Time: %s\n" +
-            "⏱️ Duration: 2 hours\n" +
-            "🆔 Booking ID: #%d\n" +
-            "💳 Transaction ID: %s\n\n" +
-            "═══════════════════════════════════════\n" +
-            "🛍️ SELECTED ITEMS/SERVICES\n" +
-            "═══════════════════════════════════════\n" +
-            "%s\n" +
-            "═══════════════════════════════════════\n" +
-            "💰 PAYMENT SUMMARY\n" +
-            "═══════════════════════════════════════\n" +
-            "Total Amount: ₹%.2f\n" +
-            "Paid Amount (70%%): ₹%.2f ✅\n" +
-            "Remaining Amount (30%%): ₹%.2f\n" +
-            "Payment Status: CONFIRMED ✅\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📱 QR CODE DATA\n" +
-            "═══════════════════════════════════════\n" +
-            "⚠️ IMPORTANT: Show this QR code at the establishment\n" +
-            "📱 Use any QR code generator app to create a QR code from this data:\n\n" +
-            "QR Code Data:\n%s\n\n" +
-            "📍 VISIT INSTRUCTIONS:\n" +
-            "1. Generate QR code from the data above using any QR app\n" +
-            "2. Arrive on time at the establishment\n" +
-            "3. Show the QR code to the staff\n" +
-            "4. Pay the remaining 30%% amount (₹%.2f) at the venue\n" +
-            "5. Enjoy your 2-hour visit!\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📞 ESTABLISHMENT CONTACT\n" +
-            "═══════════════════════════════════════\n" +
-            "Address: %s\n" +
-            "Phone: %s\n" +
-            "Email: %s\n\n" +
-            "Need help? Contact our support team or reply to this email.\n\n" +
-            "Thank you for choosing OpenNova! 🙏\n\n" +
-            "Best regards,\n" +
-            "OpenNova Team\n" +
-            "📧 abishekopennova@gmail.com\n" +
-            "🌐 www.opennova.com",
-            
-            booking.getUser().getName(),
-            booking.getEstablishment().getName(),
-            booking.getVisitingDate(),
-            booking.getVisitingTime(),
-            booking.getId(),
-            booking.getTransactionId(),
-            itemsDetails,
-            booking.getAmount().doubleValue(),
-            booking.getPaymentAmount().doubleValue(),
-            booking.getAmount().doubleValue() - booking.getPaymentAmount().doubleValue(),
-            qrCodeData,
-            booking.getAmount().doubleValue() - booking.getPaymentAmount().doubleValue(),
-            booking.getEstablishment().getAddress() != null ? booking.getEstablishment().getAddress() : "Address not available",
-            booking.getEstablishment().getContactNumber() != null ? booking.getEstablishment().getContactNumber() : "Phone not available",
-            booking.getEstablishment().getEmail() != null ? booking.getEstablishment().getEmail() : "Email not available"
-        );
-        
-        sendEmail(to, subject, body);
-    }
-
-    @Async
-    public void sendOwnerCancellationNotification(String to, com.opennova.model.Booking booking, String reason) {
-        String subject = "❌ Booking Cancelled by Owner - " + booking.getEstablishment().getName();
-        
-        // Parse selected items for detailed display
-        String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-        
-        String body = String.format(
-            "Dear %s,\n\n" +
-            "❌ We regret to inform you that your booking has been cancelled by the establishment owner.\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📋 CANCELLED BOOKING DETAILS\n" +
-            "═══════════════════════════════════════\n" +
-            "🏢 Establishment: %s\n" +
-            "📅 Date: %s\n" +
-            "🕐 Time: %s\n" +
-            "🆔 Booking ID: #%d\n" +
-            "💳 Transaction ID: %s\n" +
-            "❌ Cancellation Reason: %s\n\n" +
-            "═══════════════════════════════════════\n" +
-            "🛍️ CANCELLED ITEMS/SERVICES\n" +
-            "═══════════════════════════════════════\n" +
-            "%s\n" +
-            "═══════════════════════════════════════\n" +
-            "💰 FULL REFUND GUARANTEED\n" +
-            "═══════════════════════════════════════\n" +
-            "Total Amount: ₹%.2f\n" +
-            "Paid Amount: ₹%.2f\n" +
-            "Refund Amount: ₹%.2f (100%% REFUND) ✅\n" +
-            "Refund Status: APPROVED\n\n" +
-            "💳 REFUND TIMELINE:\n" +
-            "- Full refund will be processed within 24 hours\n" +
-            "- Amount will be credited to your original payment method\n" +
-            "- You'll receive a confirmation email once processed\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📞 ESTABLISHMENT CONTACT\n" +
-            "═══════════════════════════════════════\n" +
-            "Address: %s\n" +
-            "Phone: %s\n" +
-            "Email: %s\n\n" +
-            "═══════════════════════════════════════\n" +
-            "🔄 ALTERNATIVE OPTIONS\n" +
-            "═══════════════════════════════════════\n" +
-            "• Browse similar establishments on OpenNova\n" +
-            "• Try booking for a different date/time\n" +
-            "• Contact our support team for personalized recommendations\n" +
-            "• Get assistance with finding alternative venues\n\n" +
-            "We sincerely apologize for this inconvenience and any disruption to your plans. 🙏\n\n" +
-            "Our support team is available 24/7 to help you find alternative options!\n\n" +
-            "Best regards,\n" +
-            "OpenNova Team\n" +
-            "📧 abishekopennova@gmail.com\n" +
-            "🌐 www.opennova.com",
-            
-            booking.getUser().getName(),
-            booking.getEstablishment().getName(),
-            booking.getVisitingDate(),
-            booking.getVisitingTime(),
-            booking.getId(),
-            booking.getTransactionId(),
-            reason,
-            itemsDetails,
-            booking.getAmount().doubleValue(),
-            booking.getPaymentAmount().doubleValue(),
-            booking.getPaymentAmount().doubleValue(),
-            booking.getEstablishment().getAddress() != null ? booking.getEstablishment().getAddress() : "Address not available",
-            booking.getEstablishment().getContactNumber() != null ? booking.getEstablishment().getContactNumber() : "Phone not available",
-            booking.getEstablishment().getEmail() != null ? booking.getEstablishment().getEmail() : "Email not available"
-        );
-        
-        sendEmail(to, subject, body);
-    }
-
-    @Async
-    public void sendEstablishmentDeletionNotification(com.opennova.model.Establishment establishment) {
-        String subject = "Establishment Deleted - " + establishment.getName();
-        String body = "Dear " + establishment.getName() + " Owner,\n\n" +
-                     "Your establishment has been successfully deleted from OpenNova platform.\n\n" +
-                     "Establishment Details:\n" +
-                     "Name: " + establishment.getName() + "\n" +
-                     "Type: " + establishment.getType().toString() + "\n" +
-                     "Address: " + establishment.getAddress() + "\n\n" +
-                     "All related data including:\n" +
-                     "- Bookings\n" +
-                     "- Reviews\n" +
-                     "- Menu items (if applicable)\n" +
-                     "- Doctor profiles (if applicable)\n" +
-                     "- Product collections (if applicable)\n" +
-                     "- Special offers\n\n" +
-                     "Have been permanently removed from the system.\n\n" +
-                     "If you wish to re-register your establishment in the future, " +
-                     "you can submit a new establishment request.\n\n" +
-                     "Thank you for being part of OpenNova.\n\n" +
-                     "Best regards,\n" +
-                     "OpenNova Team";
-        
-        sendEmail(establishment.getEmail(), subject, body);
-    }
-
-    @Async
-    public void sendEstablishmentApprovalWithCredentials(com.opennova.model.Establishment establishment) {
-        try {
-            // Generate temporary password
-            String tempPassword = generateTemporaryPassword();
-            
-            String subject = "Establishment Approved - OpenNova Platform Access";
-            String body = String.format(
-                "Dear %s,\n\n" +
-                "Congratulations! Your establishment '%s' has been approved and is now live on the OpenNova platform.\n\n" +
-                "Your login credentials:\n" +
-                "Email: %s\n" +
-                "Temporary Password: %s\n\n" +
-                "Please log in to your owner portal using these credentials. You will be prompted to change your password on first login.\n\n" +
-                "Portal Access: Based on your establishment type (%s), you will be redirected to the appropriate management portal.\n\n" +
-                "Best regards,\n" +
-                "OpenNova Team",
-                establishment.getName(),
-                establishment.getName(),
-                establishment.getEmail(),
-                tempPassword,
-                establishment.getType().toString()
-            );
-            
-            sendEmail(establishment.getEmail(), subject, body);
-            
-            // Store temporary password (in production, hash this)
-            System.out.println("Temporary password for " + establishment.getEmail() + ": " + tempPassword);
-            
-        } catch (Exception e) {
-            System.err.println("Failed to send establishment approval email: " + e.getMessage());
-        }
-    }
-
-    @Async
     public void sendBookingConfirmation(com.opennova.model.Booking booking) {
         try {
-            String subject = "✅ Booking Created Successfully - " + booking.getEstablishment().getName();
-            
-            // Parse selected items for detailed display
-            String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-            
-            String body = String.format(
-                "Dear %s,\n\n" +
-                "✅ Your booking has been created successfully!\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📋 BOOKING DETAILS\n" +
-                "═══════════════════════════════════════\n" +
-                "🏢 Establishment: %s\n" +
-                "📅 Date: %s\n" +
-                "🕐 Time: %s\n" +
-                "⏱️ Duration: 2 hours\n" +
-                "🆔 Booking ID: #%d\n" +
-                "💳 Transaction ID: %s\n" +
-                "📊 Status: PENDING (Awaiting owner confirmation)\n\n" +
-                "═══════════════════════════════════════\n" +
-                "🛍️ SELECTED ITEMS/SERVICES\n" +
-                "═══════════════════════════════════════\n" +
-                "%s\n" +
-                "═══════════════════════════════════════\n" +
-                "💰 PAYMENT SUMMARY\n" +
-                "═══════════════════════════════════════\n" +
-                "Total Amount: ₹%.2f\n" +
-                "Paid Amount (70%%): ₹%.2f ✅\n" +
-                "Remaining Amount (30%%): ₹%.2f\n" +
-                "Payment Status: CONFIRMED ✅\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📞 ESTABLISHMENT CONTACT\n" +
-                "═══════════════════════════════════════\n" +
-                "Address: %s\n" +
-                "Phone: %s\n" +
-                "Email: %s\n\n" +
-                "⏳ NEXT STEPS:\n" +
-                "1. Wait for the establishment owner to confirm your booking\n" +
-                "2. You'll receive a QR code once confirmed\n" +
-                "3. Present the QR code at the establishment on your visit date\n" +
-                "4. Pay the remaining 30%% amount at the venue\n\n" +
-                "📧 You'll receive another email with your QR code once the booking is confirmed by the owner.\n\n" +
-                "Need help? Contact our support team or reply to this email.\n\n" +
-                "Thank you for choosing OpenNova! 🙏\n\n" +
-                "Best regards,\n" +
-                "OpenNova Team\n" +
-                "📧 abishekopennova@gmail.com\n" +
-                "🌐 www.opennova.com",
-                
-                booking.getUser().getName(),
-                booking.getEstablishment().getName(),
-                booking.getVisitingDate(),
-                booking.getVisitingTime(),
-                booking.getId(),
-                booking.getTransactionId(),
-                itemsDetails,
-                booking.getAmount().doubleValue(),
-                booking.getPaymentAmount().doubleValue(),
-                booking.getAmount().doubleValue() - booking.getPaymentAmount().doubleValue(),
-                booking.getEstablishment().getAddress() != null ? booking.getEstablishment().getAddress() : "Address not available",
-                booking.getEstablishment().getContactNumber() != null ? booking.getEstablishment().getContactNumber() : "Phone not available",
-                booking.getEstablishment().getEmail() != null ? booking.getEstablishment().getEmail() : "Email not available"
-            );
-            
-            sendEmail(booking.getUserEmail(), subject, body);
-        } catch (Exception e) {
-            System.err.println("Failed to send booking confirmation: " + e.getMessage());
-        }
-    }
-
-    @Async
-    public void sendBookingCancellation(com.opennova.model.Booking booking) {
-        try {
-            String subject = "❌ Booking Cancelled - " + booking.getEstablishment().getName();
-            
-            // Parse selected items for detailed display
-            String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-            
-            String body = String.format(
-                "Dear %s,\n\n" +
-                "❌ We regret to inform you that your booking has been cancelled.\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📋 CANCELLED BOOKING DETAILS\n" +
-                "═══════════════════════════════════════\n" +
-                "🏢 Establishment: %s\n" +
-                "📅 Date: %s\n" +
-                "🕐 Time: %s\n" +
-                "🆔 Booking ID: #%d\n" +
-                "💳 Transaction ID: %s\n" +
-                "❌ Cancellation Reason: %s\n\n" +
-                "═══════════════════════════════════════\n" +
-                "🛍️ CANCELLED ITEMS/SERVICES\n" +
-                "═══════════════════════════════════════\n" +
-                "%s\n" +
-                "═══════════════════════════════════════\n" +
-                "💰 REFUND INFORMATION\n" +
-                "═══════════════════════════════════════\n" +
-                "Total Amount: ₹%.2f\n" +
-                "Paid Amount: ₹%.2f\n" +
-                "Refund Status: %s\n" +
-                "Refund Amount: ₹%.2f\n\n" +
-                "💳 REFUND TIMELINE:\n" +
-                "- Refund will be processed within 24-48 hours\n" +
-                "- Amount will be credited to your original payment method\n" +
-                "- You'll receive a confirmation email once processed\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📞 ESTABLISHMENT CONTACT\n" +
-                "═══════════════════════════════════════\n" +
-                "Address: %s\n" +
-                "Phone: %s\n" +
-                "Email: %s\n\n" +
-                "We sincerely apologize for any inconvenience caused. 🙏\n\n" +
-                "If you have any questions about your refund or need assistance with a new booking, please contact our support team.\n\n" +
-                "Thank you for your understanding.\n\n" +
-                "Best regards,\n" +
-                "OpenNova Team\n" +
-                "📧 abishekopennova@gmail.com\n" +
-                "🌐 www.opennova.com",
-                
-                booking.getUser().getName(),
-                booking.getEstablishment().getName(),
-                booking.getVisitingDate(),
-                booking.getVisitingTime(),
-                booking.getId(),
-                booking.getTransactionId(),
-                booking.getCancellationReason() != null ? booking.getCancellationReason() : "Not specified",
-                itemsDetails,
-                booking.getAmount().doubleValue(),
-                booking.getPaymentAmount().doubleValue(),
-                booking.getRefundStatus(),
-                booking.getPaymentAmount().doubleValue(),
-                booking.getEstablishment().getAddress() != null ? booking.getEstablishment().getAddress() : "Address not available",
-                booking.getEstablishment().getContactNumber() != null ? booking.getEstablishment().getContactNumber() : "Phone not available",
-                booking.getEstablishment().getEmail() != null ? booking.getEstablishment().getEmail() : "Email not available"
-            );
-            
-            sendEmail(booking.getUserEmail(), subject, body);
-        } catch (Exception e) {
-            System.err.println("Failed to send booking cancellation: " + e.getMessage());
-        }
-    }
-
-    private String formatSelectedItems(String selectedItemsJson, String establishmentType) {
-        try {
-            if (selectedItemsJson == null || selectedItemsJson.trim().isEmpty()) {
-                return "No items selected";
-            }
-            
-            // Parse JSON string to extract items
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            java.util.List<java.util.Map<String, Object>> items = mapper.readValue(selectedItemsJson, 
-                mapper.getTypeFactory().constructCollectionType(java.util.List.class, java.util.Map.class));
-            
-            if (items.isEmpty()) {
-                return "No items selected";
-            }
-            
-            StringBuilder itemsText = new StringBuilder();
-            double totalAmount = 0.0;
-            
-            for (int i = 0; i < items.size(); i++) {
-                java.util.Map<String, Object> item = items.get(i);
-                
-                // Extract common fields
-                String name = getStringValue(item, "name", "itemName", "doctorName");
-                String description = getStringValue(item, "description", "specialization");
-                String brand = getStringValue(item, "brand");
-                String fabric = getStringValue(item, "fabric");
-                String category = getStringValue(item, "category");
-                String availability = getStringValue(item, "availability");
-                
-                double price = getDoubleValue(item, "price", "consultationFee");
-                int quantity = getIntValue(item, "quantity", 1);
-                double itemTotal = price * quantity;
-                totalAmount += itemTotal;
-                
-                // Format based on establishment type
-                itemsText.append(String.format("%d. ", i + 1));
-                
-                if ("HOSPITAL".equals(establishmentType)) {
-                    itemsText.append(String.format("👨‍⚕️ Dr. %s", name != null ? name : "Unknown Doctor"));
-                    if (description != null) {
-                        itemsText.append(String.format("\n   Specialization: %s", description));
-                    }
-                    if (availability != null) {
-                        itemsText.append(String.format("\n   Available: %s", availability));
-                    }
-                    itemsText.append(String.format("\n   Consultation Fee: ₹%.2f", price));
-                    
-                } else if ("SHOP".equals(establishmentType)) {
-                    itemsText.append(String.format("🛍️ %s", name != null ? name : "Unknown Item"));
-                    if (brand != null) {
-                        itemsText.append(String.format("\n   Brand: %s", brand));
-                    }
-                    if (fabric != null) {
-                        itemsText.append(String.format("\n   Material: %s", fabric));
-                    }
-                    if (category != null) {
-                        itemsText.append(String.format("\n   Category: %s", category));
-                    }
-                    if (quantity > 1) {
-                        itemsText.append(String.format("\n   Quantity: %d", quantity));
-                    }
-                    itemsText.append(String.format("\n   Price: ₹%.2f", price));
-                    if (quantity > 1) {
-                        itemsText.append(String.format(" x %d = ₹%.2f", quantity, itemTotal));
-                    }
-                    
-                } else { // HOTEL or default
-                    itemsText.append(String.format("🍽️ %s", name != null ? name : "Unknown Item"));
-                    if (description != null) {
-                        itemsText.append(String.format("\n   Description: %s", description));
-                    }
-                    if (category != null) {
-                        itemsText.append(String.format("\n   Category: %s", category));
-                    }
-                    if (quantity > 1) {
-                        itemsText.append(String.format("\n   Quantity: %d", quantity));
-                    }
-                    itemsText.append(String.format("\n   Price: ₹%.2f", price));
-                    if (quantity > 1) {
-                        itemsText.append(String.format(" x %d = ₹%.2f", quantity, itemTotal));
-                    }
-                }
-                
-                if (i < items.size() - 1) {
-                    itemsText.append("\n\n");
+            // Use userEmail field first, then fallback to user relationship
+            String to = booking.getUserEmail();
+            if (to == null || to.trim().isEmpty()) {
+                if (booking.getUser() != null) {
+                    to = booking.getUser().getEmail();
                 }
             }
             
-            // Add total
-            itemsText.append(String.format("\n\n💰 TOTAL: ₹%.2f", totalAmount));
-            
-            return itemsText.toString();
-            
-        } catch (Exception e) {
-            System.err.println("Error formatting selected items: " + e.getMessage());
-            return "Items: " + selectedItemsJson;
-        }
-    }
-    
-    private String getStringValue(java.util.Map<String, Object> map, String... keys) {
-        for (String key : keys) {
-            Object value = map.get(key);
-            if (value != null && !value.toString().trim().isEmpty()) {
-                return value.toString();
+            if (to == null || to.trim().isEmpty()) {
+                System.err.println("❌ Cannot send booking confirmation: No email address found for booking " + booking.getId());
+                return;
             }
-        }
-        return null;
-    }
-    
-    private double getDoubleValue(java.util.Map<String, Object> map, String... keys) {
-        for (String key : keys) {
-            Object value = map.get(key);
-            if (value != null) {
-                try {
-                    return Double.parseDouble(value.toString());
-                } catch (NumberFormatException e) {
-                    // Continue to next key
-                }
-            }
-        }
-        return 0.0;
-    }
-    
-    private int getIntValue(java.util.Map<String, Object> map, String key, int defaultValue) {
-        Object value = map.get(key);
-        if (value != null) {
+            
+            String customerName = "Customer";
             try {
-                return Integer.parseInt(value.toString());
-            } catch (NumberFormatException e) {
-                return defaultValue;
+                if (booking.getUser() != null && booking.getUser().getName() != null) {
+                    customerName = booking.getUser().getName();
+                } else if (to.contains("@")) {
+                    customerName = to.split("@")[0]; // Use email prefix as fallback
+                }
+            } catch (Exception e) {
+                // Keep default name
             }
-        }
-        return defaultValue;
-    }
-
-
-
-    @Async
-    public void sendOwnerNotificationForCustomerCancellation(String ownerEmail, com.opennova.model.Booking booking, long hoursUntilBooking) {
-        String subject = "📋 Customer Cancellation - " + booking.getEstablishment().getName();
-        
-        // Parse selected items for detailed display
-        String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-        
-        String refundStatus = hoursUntilBooking >= 2 ? "APPROVED (Full Refund)" : "NOT ELIGIBLE (No Refund)";
-        String refundReason = hoursUntilBooking >= 2 ? 
-            "Cancelled more than 2 hours before booking time" : 
-            "Cancelled within 2 hours of booking time";
-        
-        String body = String.format(
-            "Dear %s Owner,\n\n" +
-            "📋 A customer has cancelled their booking at your establishment.\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📋 CANCELLED BOOKING DETAILS\n" +
-            "═══════════════════════════════════════\n" +
-            "🏢 Establishment: %s\n" +
-            "👤 Customer: %s (%s)\n" +
-            "📅 Date: %s\n" +
-            "🕐 Time: %s\n" +
-            "🆔 Booking ID: #%d\n" +
-            "💳 Transaction ID: %s\n" +
-            "⏰ Cancelled: %s hours before booking\n" +
-            "❌ Cancellation Time: %s\n\n" +
-            "═══════════════════════════════════════\n" +
-            "🛍️ CANCELLED ITEMS/SERVICES\n" +
-            "═══════════════════════════════════════\n" +
-            "%s\n" +
-            "═══════════════════════════════════════\n" +
-            "💰 REFUND INFORMATION\n" +
-            "═══════════════════════════════════════\n" +
-            "Total Amount: ₹%.2f\n" +
-            "Customer Paid: ₹%.2f\n" +
-            "Refund Status: %s\n" +
-            "Refund Reason: %s\n\n" +
-            "═══════════════════════════════════════\n" +
-            "📊 BOOKING POLICY APPLIED\n" +
-            "═══════════════════════════════════════\n" +
-            "• Cancel before 2 hours → Full refund\n" +
-            "• Cancel within 2 hours → No refund\n" +
-            "• Visiting duration: 2 hours\n\n" +
-            "═══════════════════════════════════════\n" +
-            "🔄 NEXT STEPS\n" +
-            "═══════════════════════════════════════\n" +
-            "• This time slot is now available for new bookings\n" +
-            "• Customer has been notified about refund status\n" +
-            "• No action required from your side\n" +
-            "• Update your availability if needed\n\n" +
-            "This is an automated notification to keep you informed about booking changes.\n\n" +
-            "Best regards,\n" +
-            "OpenNova Team\n" +
-            "📧 abishekopennova@gmail.com\n" +
-            "🌐 www.opennova.com",
             
-            booking.getEstablishment().getName(),
-            booking.getEstablishment().getName(),
-            booking.getUser().getName(),
-            booking.getUserEmail(),
-            booking.getVisitingDate(),
-            booking.getVisitingTime(),
-            booking.getId(),
-            booking.getTransactionId(),
-            hoursUntilBooking,
-            java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-            itemsDetails,
-            booking.getAmount().doubleValue(),
-            booking.getPaymentAmount().doubleValue(),
-            refundStatus,
-            refundReason
-        );
-        
-        sendEmail(ownerEmail, subject, body);
-    }
-
-    private String generateTemporaryPassword() {
-        // Generate a secure temporary password
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder password = new StringBuilder();
-        java.util.Random random = new java.util.Random();
-        
-        for (int i = 0; i < 8; i++) {
-            password.append(chars.charAt(random.nextInt(chars.length())));
-        }
-        
-        return password.toString();
-    }
-
-    public void sendOwnerCredentials(com.opennova.model.User ownerUser, String tempPassword) {
-        try {
-            System.out.println("📧 Preparing to send owner credentials email...");
-            System.out.println("Owner: " + ownerUser.getName() + " (" + ownerUser.getEmail() + ")");
-            System.out.println("Password: " + tempPassword);
+            String establishmentName = "Unknown Establishment";
+            try {
+                if (booking.getEstablishment() != null && booking.getEstablishment().getName() != null) {
+                    establishmentName = booking.getEstablishment().getName();
+                }
+            } catch (Exception e) {
+                // Keep default name
+            }
             
-            String subject = "Welcome to OpenNova - Owner Account Created";
+            String subject = "🎉 Booking Confirmed - " + establishmentName;
+            
             String body = String.format(
-                "Dear %s Owner,\n\n" +
-                "Welcome to OpenNova! Your owner account has been created successfully by our admin team.\n\n" +
-                "═══════════════════════════════════════\n" +
-                "YOUR LOGIN CREDENTIALS\n" +
-                "═══════════════════════════════════════\n" +
-                "Email: %s\n" +
-                "Temporary Password: %s\n\n" +
-                "═══════════════════════════════════════\n" +
-                "ACCESS YOUR PORTAL\n" +
-                "═══════════════════════════════════════\n" +
-                "Portal URL: http://localhost:3000/login\n\n" +
-                "NEXT STEPS:\n" +
-                "1. Click the link above or visit the portal\n" +
-                "2. Log in using your credentials\n" +
-                "3. Change your password immediately for security\n" +
-                "4. Complete your establishment profile\n" +
-                "5. Set up your services/menu\n" +
-                "6. Start accepting bookings!\n\n" +
-                "SECURITY REMINDER:\n" +
-                "Please change your password after your first login for security purposes.\n\n" +
-                "If you have any questions or need assistance setting up your establishment, please contact our support team.\n\n" +
-                "Welcome to the OpenNova family!\n\n" +
+                "Dear %s,\n\n" +
+                "Your booking has been confirmed! Here are the details:\n\n" +
+                "🏢 Establishment: %s\n" +
+                "📅 Date: %s\n" +
+                "⏰ Time: %s\n" +
+                "💰 Amount Paid: ₹%.2f\n" +
+                "🆔 Booking ID: %s\n" +
+                "📱 Transaction ID: %s\n\n" +
+                "Please save this email for your records.\n\n" +
+                "Thank you for choosing OpenNova!\n\n" +
                 "Best regards,\n" +
-                "OpenNova Admin Team\n" +
-                "admin@opennova.com\n" +
-                "www.opennova.com",
-                ownerUser.getName(),
-                ownerUser.getEmail(),
-                tempPassword
+                "OpenNova Team",
+                customerName,
+                establishmentName,
+                booking.getVisitingDate() != null ? booking.getVisitingDate() : "Not specified",
+                booking.getVisitingTime() != null ? booking.getVisitingTime() : "Not specified",
+                booking.getPaymentAmount() != null ? booking.getPaymentAmount() : BigDecimal.ZERO,
+                booking.getId() != null ? booking.getId() : "Unknown",
+                booking.getTransactionId() != null ? booking.getTransactionId() : "Not available"
             );
             
-            System.out.println("📤 Sending email synchronously to: " + ownerUser.getEmail());
-            sendEmailSync(ownerUser.getEmail(), subject, body);
-            System.out.println("✅ Owner credentials email sent successfully!");
-            
+            sendEmailSync(to, subject, body);
+            System.out.println("✅ Booking confirmation email sent to: " + to + " for booking ID: " + booking.getId());
         } catch (Exception e) {
-            System.err.println("❌ Failed to send owner credentials email: " + e.getMessage());
+            System.err.println("❌ Failed to send booking confirmation email for booking " + booking.getId() + ": " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to send owner credentials email: " + e.getMessage());
+            // Don't throw exception - booking should still succeed even if email fails
         }
     }
 
-    @Async
-    public void sendEstablishmentRequestApproval(String to, String establishmentName, String email, String password) {
+    public void sendEstablishmentApprovalWithCredentials(String toEmail, String establishmentName, String loginEmail, String password) {
         try {
+            System.out.println("📧 Sending approval email to: " + toEmail + " for establishment: " + establishmentName);
+            System.out.println("📧 Login credentials - Email: " + loginEmail + ", Password length: " + (password != null ? password.length() : "null"));
+            
             String subject = "🎉 Establishment Approved - Welcome to OpenNova!";
             String body = String.format(
-                "Dear %s,\n\n" +
-                "Congratulations! Your establishment request has been approved and your account is now active.\n\n" +
-                "📋 ESTABLISHMENT DETAILS:\n" +
+                "Dear %s Owner,\n\n" +
+                "🎉 Congratulations! Your establishment request has been APPROVED and your account is now active.\n\n" +
+                "📋 Establishment Details:\n" +
                 "• Name: %s\n" +
-                "• Email: %s\n\n" +
-                "🔐 LOGIN CREDENTIALS:\n" +
+                "• Login Email: %s\n\n" +
+                "🔐 Your Login Credentials:\n" +
                 "• Email: %s\n" +
                 "• Password: %s\n\n" +
-                "🌐 ACCESS YOUR PORTAL:\n" +
-                "You can now log in to your owner portal at: http://localhost:3000/login\n\n" +
-                "📱 NEXT STEPS:\n" +
-                "1. Log in to your owner portal\n" +
-                "2. Update your establishment profile\n" +
-                "3. Set up your menu/services\n" +
-                "4. Configure your operating hours\n" +
-                "5. Start accepting bookings!\n\n" +
-                "🔒 SECURITY NOTE:\n" +
-                "Please change your password after your first login for security purposes.\n\n" +
-                "If you have any questions or need assistance, please contact our support team.\n\n" +
-                "Welcome to the OpenNova family!\n\n" +
+                "🌐 Access Your Owner Portal:\n" +
+                "http://localhost:3000/login\n\n" +
+                "📝 Next Steps:\n" +
+                "1. Log in to your owner portal using the credentials above\n" +
+                "2. Change your password for security (recommended)\n" +
+                "3. Complete your establishment profile\n" +
+                "4. Set up your menu/services\n" +
+                "5. Start accepting bookings from customers!\n\n" +
+                "💡 Important: Please save this email with your login credentials.\n\n" +
+                "Welcome to the OpenNova family! We're excited to have you on board.\n\n" +
                 "Best regards,\n" +
                 "OpenNova Admin Team\n" +
-                "📧 admin@opennova.com\n" +
-                "🌐 www.opennova.com",
+                "📧 support@opennova.com",
                 establishmentName,
                 establishmentName,
-                email,
-                email,
+                loginEmail,
+                loginEmail,
                 password
             );
             
-            sendEmail(to, subject, body);
+            sendEmailSync(toEmail, subject, body);
+            System.out.println("✅ Establishment approval email sent successfully to: " + toEmail);
+            
         } catch (Exception e) {
-            System.err.println("Failed to send establishment approval email: " + e.getMessage());
-            throw new RuntimeException("Failed to send establishment approval email: " + e.getMessage());
+            System.err.println("❌ Failed to send establishment approval email: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
-    @Async
-    public void sendBookingApprovalWithDetails(com.opennova.model.Booking booking) {
-        try {
-            String subject = "🎉 Booking APPROVED - " + booking.getEstablishment().getName();
-            
-            // Parse selected items for detailed display
-            String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-            
-            String body = String.format(
-                "Dear %s,\n\n" +
-                "🎉 EXCELLENT NEWS! Your booking has been APPROVED by %s!\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📋 APPROVED BOOKING DETAILS\n" +
-                "═══════════════════════════════════════\n" +
-                "🏢 Establishment: %s\n" +
-                "📅 Visit Date: %s\n" +
-                "🕐 Visit Time: %s\n" +
-                "⏱️ Duration: 2 hours\n" +
-                "🆔 Booking ID: #%d\n" +
-                "💳 Transaction ID: %s\n" +
-                "✅ Status: CONFIRMED\n\n" +
-                "═══════════════════════════════════════\n" +
-                "🛍️ CONFIRMED ITEMS/SERVICES\n" +
-                "═══════════════════════════════════════\n" +
-                "%s\n" +
-                "═══════════════════════════════════════\n" +
-                "💰 PAYMENT SUMMARY\n" +
-                "═══════════════════════════════════════\n" +
-                "Total Amount: ₹%.2f\n" +
-                "✅ Paid Amount (70%%): ₹%.2f (CONFIRMED)\n" +
-                "💳 Remaining Amount (30%%): ₹%.2f (Pay at venue)\n" +
-                "Payment Status: APPROVED ✅\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📱 YOUR QR CODE\n" +
-                "═══════════════════════════════════════\n" +
-                "⚠️ IMPORTANT: Show this QR code at the establishment\n" +
-                "QR Code: %s\n\n" +
-                "📍 VISIT INSTRUCTIONS:\n" +
-                "1. ✅ Arrive on time at %s\n" +
-                "2. 📱 Present this QR code to the staff\n" +
-                "3. 💳 Pay the remaining ₹%.2f at the venue\n" +
-                "4. 🎉 Enjoy your 2-hour experience!\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📞 ESTABLISHMENT CONTACT\n" +
-                "═══════════════════════════════════════\n" +
-                "📍 Address: %s\n" +
-                "📞 Phone: %s\n" +
-                "📧 Email: %s\n\n" +
-                "═══════════════════════════════════════\n" +
-                "🎯 IMPORTANT REMINDERS\n" +
-                "═══════════════════════════════════════\n" +
-                "• Save this email for your records\n" +
-                "• Arrive 10 minutes early\n" +
-                "• Bring a valid ID\n" +
-                "• Keep your phone charged for the QR code\n" +
-                "• Contact the establishment if you need to reschedule\n\n" +
-                "We're excited for your visit! 🌟\n\n" +
-                "Need assistance? Our support team is here to help!\n\n" +
-                "Best regards,\n" +
-                "OpenNova Team\n" +
-                "📧 abishekopennova@gmail.com\n" +
-                "🌐 www.opennova.com",
-                
-                booking.getUser().getName(),
-                booking.getEstablishment().getName(),
-                booking.getEstablishment().getName(),
-                booking.getVisitingDate(),
-                booking.getVisitingTime(),
-                booking.getId(),
-                booking.getTransactionId(),
-                itemsDetails,
-                booking.getAmount().doubleValue(),
-                booking.getPaymentAmount().doubleValue(),
-                booking.getAmount().doubleValue() - booking.getPaymentAmount().doubleValue(),
-                booking.getQrCode() != null ? booking.getQrCode() : "QR Code will be generated",
-                booking.getEstablishment().getName(),
-                booking.getAmount().doubleValue() - booking.getPaymentAmount().doubleValue(),
-                booking.getEstablishment().getAddress() != null ? booking.getEstablishment().getAddress() : "Address not available",
-                booking.getEstablishment().getContactNumber() != null ? booking.getEstablishment().getContactNumber() : "Phone not available",
-                booking.getEstablishment().getEmail() != null ? booking.getEstablishment().getEmail() : "Email not available"
-            );
-            
-            sendEmail(booking.getUserEmail(), subject, body);
-        } catch (Exception e) {
-            System.err.println("Failed to send booking approval email: " + e.getMessage());
-        }
-    }
-
-    @Async
-    public void sendBookingRejectionWithDetails(com.opennova.model.Booking booking, String reason) {
-        try {
-            String subject = "❌ Booking REJECTED - " + booking.getEstablishment().getName();
-            
-            // Parse selected items for detailed display
-            String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-            
-            String body = String.format(
-                "Dear %s,\n\n" +
-                "❌ We regret to inform you that your booking has been REJECTED by %s.\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📋 REJECTED BOOKING DETAILS\n" +
-                "═══════════════════════════════════════\n" +
-                "🏢 Establishment: %s\n" +
-                "📅 Requested Date: %s\n" +
-                "🕐 Requested Time: %s\n" +
-                "🆔 Booking ID: #%d\n" +
-                "💳 Transaction ID: %s\n" +
-                "❌ Status: REJECTED\n" +
-                "📝 Rejection Reason: %s\n\n" +
-                "═══════════════════════════════════════\n" +
-                "🛍️ REJECTED ITEMS/SERVICES\n" +
-                "═══════════════════════════════════════\n" +
-                "%s\n" +
-                "═══════════════════════════════════════\n" +
-                "💰 FULL REFUND GUARANTEED\n" +
-                "═══════════════════════════════════════\n" +
-                "Total Amount: ₹%.2f\n" +
-                "Paid Amount: ₹%.2f\n" +
-                "💳 Refund Amount: ₹%.2f (100%% REFUND) ✅\n" +
-                "Refund Status: APPROVED\n\n" +
-                "💳 REFUND PROCESS:\n" +
-                "• Full refund will be processed within 24 hours\n" +
-                "• Amount will be credited to your original payment method\n" +
-                "• You'll receive a confirmation email once processed\n" +
-                "• No additional action required from your side\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📞 ESTABLISHMENT CONTACT\n" +
-                "═══════════════════════════════════════\n" +
-                "📍 Address: %s\n" +
-                "📞 Phone: %s\n" +
-                "📧 Email: %s\n\n" +
-                "═══════════════════════════════════════\n" +
-                "🔄 ALTERNATIVE OPTIONS\n" +
-                "═══════════════════════════════════════\n" +
-                "• Browse similar establishments on OpenNova\n" +
-                "• Try booking for a different date/time\n" +
-                "• Contact the establishment directly for clarification\n" +
-                "• Reach out to our support team for assistance\n" +
-                "• Get personalized recommendations from our team\n\n" +
-                "═══════════════════════════════════════\n" +
-                "💬 NEED HELP?\n" +
-                "═══════════════════════════════════════\n" +
-                "Our support team is available 24/7 to:\n" +
-                "• Help you find alternative venues\n" +
-                "• Assist with rebooking\n" +
-                "• Answer any questions about the rejection\n" +
-                "• Provide personalized recommendations\n\n" +
-                "We sincerely apologize for this inconvenience and any disruption to your plans. 🙏\n\n" +
-                "We're committed to helping you find the perfect booking!\n\n" +
-                "Best regards,\n" +
-                "OpenNova Team\n" +
-                "📧 abishekopennova@gmail.com\n" +
-                "🌐 www.opennova.com",
-                
-                booking.getUser().getName(),
-                booking.getEstablishment().getName(),
-                booking.getEstablishment().getName(),
-                booking.getVisitingDate(),
-                booking.getVisitingTime(),
-                booking.getId(),
-                booking.getTransactionId(),
-                reason != null ? reason : "No specific reason provided",
-                itemsDetails,
-                booking.getAmount().doubleValue(),
-                booking.getPaymentAmount().doubleValue(),
-                booking.getPaymentAmount().doubleValue(),
-                booking.getEstablishment().getAddress() != null ? booking.getEstablishment().getAddress() : "Address not available",
-                booking.getEstablishment().getContactNumber() != null ? booking.getEstablishment().getContactNumber() : "Phone not available",
-                booking.getEstablishment().getEmail() != null ? booking.getEstablishment().getEmail() : "Email not available"
-            );
-            
-            sendEmail(booking.getUserEmail(), subject, body);
-        } catch (Exception e) {
-            System.err.println("Failed to send booking rejection email: " + e.getMessage());
-        }
-    }
-
-    @Async
+    // Additional methods required by other services
     public void sendNewBookingNotificationToOwner(com.opennova.model.Booking booking) {
         try {
-            String subject = "🔔 New Booking Received - " + booking.getEstablishment().getName();
-            
-            // Parse selected items for detailed display
-            String itemsDetails = formatSelectedItems(booking.getSelectedItems(), booking.getEstablishment().getType().toString());
-            
+            String to = booking.getEstablishment().getEmail();
+            String subject = "New Booking Received - " + booking.getEstablishment().getName();
             String body = String.format(
-                "Dear %s,\n\n" +
-                "🔔 You have received a new booking!\n\n" +
-                "═══════════════════════════════════════\n" +
-                "📋 BOOKING DETAILS\n" +
-                "═══════════════════════════════════════\n" +
-                "👤 Customer: %s\n" +
-                "📧 Customer Email: %s\n" +
-                "📅 Date: %s\n" +
-                "🕐 Time: %s\n" +
-                "⏱️ Duration: 2 hours\n" +
-                "🆔 Booking ID: #%d\n" +
-                "💳 Transaction ID: %s\n" +
-                "📊 Status: PENDING (Requires your confirmation)\n\n" +
-                "═══════════════════════════════════════\n" +
-                "🛍️ SELECTED ITEMS/SERVICES\n" +
-                "═══════════════════════════════════════\n" +
-                "%s\n" +
-                "═══════════════════════════════════════\n" +
-                "💰 PAYMENT SUMMARY\n" +
-                "═══════════════════════════════════════\n" +
-                "Total Amount: ₹%.2f\n" +
-                "Received Amount (70%%): ₹%.2f ✅\n" +
-                "Remaining Amount (30%%): ₹%.2f (To be collected at venue)\n" +
-                "Payment Status: CONFIRMED ✅\n\n" +
-                "⚡ ACTION REQUIRED:\n" +
-                "1. Log in to your owner portal to review the booking\n" +
-                "2. Confirm or reject the booking\n" +
-                "3. Customer will receive QR code once confirmed\n\n" +
-                "🔗 Owner Portal: %s/owner/bookings\n\n" +
-                "⏰ Please respond within 24 hours to maintain good customer service.\n\n" +
+                "Dear Owner,\n\n" +
+                "You have received a new booking!\n\n" +
+                "Customer: %s\n" +
+                "Date: %s\n" +
+                "Time: %s\n" +
+                "Amount: ₹%.2f\n" +
+                "Booking ID: %s\n\n" +
+                "Please log in to your portal to manage this booking.\n\n" +
                 "Best regards,\n" +
                 "OpenNova Team",
-                
-                booking.getEstablishment().getOwner().getName(),
                 booking.getUser().getName(),
+                booking.getVisitingDate(),
+                booking.getVisitingTime(),
+                booking.getPaymentAmount(),
+                booking.getId()
+            );
+            sendEmailSync(to, subject, body);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send owner notification: " + e.getMessage());
+        }
+    }
+
+    public void sendBookingCancellation(com.opennova.model.Booking booking) {
+        try {
+            String to = booking.getUser().getEmail();
+            String subject = "Booking Cancelled - " + booking.getEstablishment().getName();
+            String body = String.format(
+                "Dear %s,\n\n" +
+                "Your booking has been cancelled.\n\n" +
+                "Booking ID: %s\n" +
+                "Establishment: %s\n" +
+                "Date: %s\n" +
+                "Time: %s\n\n" +
+                "Refund will be processed within 24 hours.\n\n" +
+                "Best regards,\n" +
+                "OpenNova Team",
+                booking.getUser().getName(),
+                booking.getId(),
+                booking.getEstablishment().getName(),
+                booking.getVisitingDate(),
+                booking.getVisitingTime()
+            );
+            sendEmailSync(to, subject, body);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send cancellation email: " + e.getMessage());
+        }
+    }
+
+    public void sendOwnerNotificationForCustomerCancellation(String ownerEmail, com.opennova.model.Booking booking, long refundAmount) {
+        try {
+            String subject = "Customer Cancelled Booking - " + booking.getEstablishment().getName();
+            String body = String.format(
+                "Dear Owner,\n\n" +
+                "A customer has cancelled their booking.\n\n" +
+                "Customer: %s\n" +
+                "Booking ID: %s\n" +
+                "Date: %s\n" +
+                "Time: %s\n" +
+                "Refund Amount: ₹%d\n\n" +
+                "Best regards,\n" +
+                "OpenNova Team",
+                booking.getUser().getName(),
+                booking.getId(),
+                booking.getVisitingDate(),
+                booking.getVisitingTime(),
+                refundAmount
+            );
+            sendEmailSync(ownerEmail, subject, body);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send owner cancellation notification: " + e.getMessage());
+        }
+    }
+
+    public void sendBookingCancellationToAdmin(com.opennova.model.Booking booking) {
+        try {
+            // Send to admin email (you can configure this in application.properties)
+            String adminEmail = "admin@opennova.com"; // Or get from configuration
+            String subject = "🚫 Booking Cancellation Alert - " + booking.getEstablishment().getName();
+            
+            String customerName = "Unknown";
+            String establishmentName = "Unknown";
+            
+            try {
+                customerName = booking.getUser() != null ? booking.getUser().getName() : booking.getUserEmail();
+                establishmentName = booking.getEstablishment() != null ? booking.getEstablishment().getName() : "Unknown";
+            } catch (Exception e) {
+                // Use defaults
+            }
+            
+            String body = String.format(
+                "Dear Admin,\n\n" +
+                "A booking has been cancelled by a customer:\n\n" +
+                "👤 Customer: %s\n" +
+                "📧 Email: %s\n" +
+                "🏢 Establishment: %s\n" +
+                "📅 Date: %s\n" +
+                "⏰ Time: %s\n" +
+                "💰 Amount: ₹%.2f\n" +
+                "🆔 Booking ID: %s\n" +
+                "📱 Transaction ID: %s\n" +
+                "💸 Refund Status: %s\n" +
+                "🕒 Cancelled At: %s\n\n" +
+                "Please review and take necessary action if required.\n\n" +
+                "Best regards,\n" +
+                "OpenNova System",
+                customerName,
+                booking.getUserEmail() != null ? booking.getUserEmail() : "Not available",
+                establishmentName,
+                booking.getVisitingDate() != null ? booking.getVisitingDate() : "Not specified",
+                booking.getVisitingTime() != null ? booking.getVisitingTime() : "Not specified",
+                booking.getPaymentAmount() != null ? booking.getPaymentAmount() : BigDecimal.ZERO,
+                booking.getId() != null ? booking.getId() : "Unknown",
+                booking.getTransactionId() != null ? booking.getTransactionId() : "Not available",
+                booking.getRefundStatus() != null ? booking.getRefundStatus().toString() : "Unknown",
+                booking.getCancelledAt() != null ? booking.getCancelledAt().toString() : "Unknown"
+            );
+            
+            sendEmailSync(adminEmail, subject, body);
+            System.out.println("✅ Admin notification email sent for booking cancellation: " + booking.getId());
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send admin notification email: " + e.getMessage());
+            e.printStackTrace();
+            // Don't throw exception - cancellation should still succeed
+        }
+    }
+
+    public void sendBookingConfirmationWithQR(com.opennova.model.Booking booking) {
+        try {
+            // Use userEmail field instead of user relationship to avoid lazy loading issues
+            String to = booking.getUserEmail() != null ? booking.getUserEmail() : 
+                       (booking.getUser() != null ? booking.getUser().getEmail() : null);
+            
+            if (to == null || to.trim().isEmpty()) {
+                System.err.println("❌ Cannot send email: No email address found for booking " + booking.getId());
+                return;
+            }
+            
+            String customerName = booking.getUser() != null ? booking.getUser().getName() : "Customer";
+            String subject = "🎉 Booking Confirmed with QR Code - " + booking.getEstablishment().getName();
+            
+            // Create HTML email with embedded QR code image
+            String body = String.format("""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+                    <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; text-align: center; color: white;">
+                        <h1 style="margin: 0; font-size: 28px;">🎉 Booking Confirmed!</h1>
+                        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Your reservation is ready</p>
+                    </div>
+                    
+                    <div style="padding: 30px; background: #f8f9fa;">
+                        <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                            <h2 style="color: #2c3e50; margin-top: 0;">Booking Details</h2>
+                            
+                            <table style="width: 100%%; border-collapse: collapse; margin: 20px 0;">
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 12px 0; font-weight: bold; color: #555;">Customer:</td>
+                                    <td style="padding: 12px 0; color: #333;">%s</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 12px 0; font-weight: bold; color: #555;">Establishment:</td>
+                                    <td style="padding: 12px 0; color: #333;">%s</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 12px 0; font-weight: bold; color: #555;">Date:</td>
+                                    <td style="padding: 12px 0; color: #333;">%s</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 12px 0; font-weight: bold; color: #555;">Time:</td>
+                                    <td style="padding: 12px 0; color: #333;">%s</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 12px 0; font-weight: bold; color: #555;">Amount Paid:</td>
+                                    <td style="padding: 12px 0; color: #27ae60; font-weight: bold;">₹%.2f</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; font-weight: bold; color: #555;">Booking ID:</td>
+                                    <td style="padding: 12px 0; color: #333; font-family: monospace;">%s</td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-top: 20px; text-align: center;">
+                            <h3 style="color: #2c3e50; margin-top: 0;">Your QR Code</h3>
+                            <p style="color: #666; margin-bottom: 20px;">Show this QR code at the establishment</p>
+                            
+                            <div style="display: inline-block; padding: 20px; background: #f8f9fa; border-radius: 10px; border: 2px dashed #ddd;">
+                                <img src="data:image/png;base64,%s" alt="Booking QR Code" style="max-width: 200px; height: auto; display: block;" />
+                            </div>
+                            
+                            <p style="color: #888; font-size: 12px; margin-top: 15px;">
+                                📱 Scan this QR code at the establishment to verify your booking
+                            </p>
+                        </div>
+                        
+                        <div style="background: #e8f5e8; padding: 20px; border-radius: 10px; margin-top: 20px; border-left: 4px solid #27ae60;">
+                            <h4 style="color: #27ae60; margin-top: 0;">Important Instructions</h4>
+                            <ul style="color: #555; margin: 0; padding-left: 20px;">
+                                <li>Arrive on time for your booking</li>
+                                <li>Show this QR code to the staff</li>
+                                <li>Keep this email for your records</li>
+                                <li>Contact us if you need to make changes</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #2c3e50; padding: 20px; text-align: center; color: white;">
+                        <p style="margin: 0; font-size: 14px;">Thank you for choosing OpenNova!</p>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">
+                            Need help? Contact our support team
+                        </p>
+                    </div>
+                </body>
+                </html>
+                """, 
+                customerName,
+                booking.getEstablishment().getName(),
+                booking.getVisitingDate(),
+                booking.getVisitingTime(),
+                booking.getPaymentAmount(),
+                booking.getId(),
+                booking.getQrCode()
+            );
+            
+            sendEmailSync(to, subject, body);
+            System.out.println("✅ Booking confirmation with embedded QR code sent to: " + to);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send QR confirmation email: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void sendBookingRejectionWithDetails(com.opennova.model.Booking booking, String reason) {
+        try {
+            String to = booking.getUser().getEmail();
+            String subject = "Booking Rejected - " + booking.getEstablishment().getName();
+            String body = String.format(
+                "Dear %s,\n\n" +
+                "Unfortunately, your booking has been rejected.\n\n" +
+                "Establishment: %s\n" +
+                "Booking ID: %s\n" +
+                "Reason: %s\n\n" +
+                "Full refund will be processed within 24 hours.\n\n" +
+                "Best regards,\n" +
+                "OpenNova Team",
+                booking.getUser().getName(),
+                booking.getEstablishment().getName(),
+                booking.getId(),
+                reason
+            );
+            sendEmailSync(to, subject, body);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send rejection email: " + e.getMessage());
+        }
+    }
+
+    public void sendBookingQRCode(String to, com.opennova.model.Booking booking, String qrCode) {
+        try {
+            String subject = "Your QR Code - " + booking.getEstablishment().getName();
+            String body = String.format(
+                "Dear Customer,\n\n" +
+                "Here is your QR code for the booking:\n\n" +
+                "Establishment: %s\n" +
+                "Date: %s\n" +
+                "Time: %s\n" +
+                "QR Code: %s\n\n" +
+                "Please show this at the establishment.\n\n" +
+                "Best regards,\n" +
+                "OpenNova Team",
+                booking.getEstablishment().getName(),
+                booking.getVisitingDate(),
+                booking.getVisitingTime(),
+                qrCode
+            );
+            sendEmailSync(to, subject, body);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send QR code email: " + e.getMessage());
+        }
+    }
+
+    public void sendEstablishmentRequestApproval(String to, String establishmentName, String email, String password) {
+        sendEstablishmentApprovalWithCredentials(to, establishmentName, email, password);
+    }
+
+    public void sendOwnerCredentials(com.opennova.model.User user, String password) {
+        try {
+            System.out.println("📧 Sending owner credentials email:");
+            System.out.println("   - To: " + user.getEmail());
+            System.out.println("   - Password length: " + (password != null ? password.length() : "null"));
+            System.out.println("   - Password type: " + (password != null && password.equals("OpenNova@123") ? "Default" : "Custom"));
+            
+            String subject = "🎉 Welcome to OpenNova - Your Owner Account is Ready!";
+            String body = String.format(
+                "Dear %s,\n\n" +
+                "Congratulations! Your establishment owner account has been successfully created by our admin team.\n\n" +
+                "🔐 Your Login Credentials:\n" +
+                "• Email: %s\n" +
+                "• Password: %s\n\n" +
+                "🚀 Next Steps:\n" +
+                "1. Log in to your owner portal at: http://localhost:3000/login\n" +
+                "2. Change your password for security\n" +
+                "3. Complete your establishment profile\n" +
+                "4. Set up your menu/services\n" +
+                "5. Start accepting bookings!\n\n" +
+                "📞 Need Help?\n" +
+                "If you have any questions or need assistance, please contact our support team.\n\n" +
+                "Welcome to the OpenNova family! We're excited to have you on board.\n\n" +
+                "Best regards,\n" +
+                "OpenNova Admin Team\n" +
+                "📧 support@opennova.com",
+                user.getName(),
+                user.getEmail(),
+                password
+            );
+            
+            sendEmailSync(user.getEmail(), subject, body);
+            System.out.println("✅ Owner credentials email sent successfully to: " + user.getEmail());
+            System.out.println("✅ Email contained password: " + (password != null && password.equals("OpenNova@123") ? "Default (OpenNova@123)" : "Custom password"));
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send owner credentials: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void sendBookingRejection(com.opennova.model.Booking booking, String reason) {
+        sendBookingRejectionWithDetails(booking, reason);
+    }
+
+    public void sendEstablishmentRequestApprovalEmail(String to, String establishmentName) {
+        try {
+            String subject = "🎉 Your Establishment Request Has Been Approved!";
+            String body = String.format("""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="color: #2563eb; margin-bottom: 10px;">OpenNova</h1>
+                            <h2 style="color: #16a34a; margin: 0;">Request Approved! 🎉</h2>
+                        </div>
+                        
+                        <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h3 style="color: #1e40af; margin-top: 0;">Great News!</h3>
+                            <p>Your establishment request for <strong>%s</strong> has been approved by our admin team.</p>
+                        </div>
+                        
+                        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #374151; margin-top: 0;">What's Next?</h4>
+                            <ul style="color: #6b7280;">
+                                <li>Your establishment will be visible to users on our platform</li>
+                                <li>You can start receiving bookings and reviews</li>
+                                <li>Log in to your account to manage your establishment</li>
+                            </ul>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 30px;">
+                            <p style="color: #6b7280; font-size: 14px;">
+                                Thank you for choosing OpenNova!<br>
+                                If you have any questions, please contact our support team.
+                            </p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """, establishmentName);
+            
+            sendEmailSync(to, subject, body);
+        } catch (Exception e) {
+            System.err.println("Failed to send establishment approval email: " + e.getMessage());
+        }
+    }
+
+    public void sendEstablishmentRequestRejectionEmail(String to, String establishmentName, String reason) {
+        try {
+            String subject = "Update on Your Establishment Request";
+            String reasonText = (reason != null && !reason.trim().isEmpty()) 
+                ? reason.trim() 
+                : "Please ensure all information is accurate and meets our guidelines.";
+                
+            String body = String.format("""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="color: #2563eb; margin-bottom: 10px;">OpenNova</h1>
+                            <h2 style="color: #dc2626; margin: 0;">Request Update</h2>
+                        </div>
+                        
+                        <div style="background-color: #fef2f2; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #dc2626;">
+                            <h3 style="color: #991b1b; margin-top: 0;">Request Status Update</h3>
+                            <p>We regret to inform you that your establishment request for <strong>%s</strong> could not be approved at this time.</p>
+                        </div>
+                        
+                        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #374151; margin-top: 0;">Reason:</h4>
+                            <p style="color: #6b7280; font-style: italic;">%s</p>
+                        </div>
+                        
+                        <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #1e40af; margin-top: 0;">What You Can Do:</h4>
+                            <ul style="color: #6b7280;">
+                                <li>Review the feedback provided above</li>
+                                <li>Make necessary corrections to your establishment information</li>
+                                <li>Submit a new request with updated details</li>
+                                <li>Contact our support team if you need assistance</li>
+                            </ul>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 30px;">
+                            <p style="color: #6b7280; font-size: 14px;">
+                                We appreciate your interest in OpenNova.<br>
+                                Please don't hesitate to reach out if you have any questions.
+                            </p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """, establishmentName, reasonText);
+            
+            sendEmailSync(to, subject, body);
+        } catch (Exception e) {
+            System.err.println("Failed to send establishment rejection email: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Send payment rejection email to customer
+     */
+    public void sendPaymentRejectionEmail(String customerEmail, String establishmentName, String reason, Double refundAmount) {
+        try {
+            String subject = "Payment Verification Update - " + establishmentName;
+            String reasonText = (reason != null && !reason.trim().isEmpty()) 
+                ? reason.trim() 
+                : "Payment verification could not be completed.";
+                
+            String body = String.format("""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="color: #2563eb; margin-bottom: 10px;">OpenNova</h1>
+                            <h2 style="color: #dc2626; margin: 0;">Payment Update</h2>
+                        </div>
+                        
+                        <div style="background-color: #fef2f2; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #dc2626;">
+                            <h3 style="color: #991b1b; margin-top: 0;">Payment Verification Status</h3>
+                            <p>We regret to inform you that your payment verification for <strong>%s</strong> could not be approved.</p>
+                        </div>
+                        
+                        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #374151; margin-top: 0;">Reason:</h4>
+                            <p style="color: #6b7280; background-color: #fff; padding: 15px; border-radius: 4px; border: 1px solid #e5e7eb;">%s</p>
+                        </div>
+                        
+                        <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #1e40af; margin-top: 0;">Refund Information</h4>
+                            <p>A full refund of <strong>₹%.2f</strong> will be processed within 24-48 hours.</p>
+                            <p style="color: #6b7280; font-size: 14px;">The refund will be credited to your original payment method.</p>
+                        </div>
+                        
+                        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #374151; margin-top: 0;">What You Can Do:</h4>
+                            <ul style="color: #6b7280;">
+                                <li>Make a new booking with the correct payment details</li>
+                                <li>Ensure you pay the exact amount required</li>
+                                <li>Upload a clear screenshot of your payment</li>
+                                <li>Contact our support team if you need assistance</li>
+                            </ul>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 30px;">
+                            <p style="color: #6b7280; font-size: 14px;">
+                                We apologize for any inconvenience caused.<br>
+                                Thank you for choosing OpenNova!
+                            </p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """, establishmentName, reasonText, refundAmount);
+            
+            sendEmailSync(customerEmail, subject, body);
+            System.out.println("📧 Payment rejection email sent to: " + customerEmail);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send payment rejection email: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Send owner cancellation notification to customer
+     */
+    public void sendOwnerCancellationNotification(com.opennova.model.Booking booking, String reason) {
+        try {
+            String to = booking.getUserEmail();
+            String subject = "Booking Cancelled by " + booking.getEstablishment().getName();
+            String body = String.format(
+                "Dear %s,\n\n" +
+                "We regret to inform you that your booking has been cancelled by the establishment.\n\n" +
+                "Booking Details:\n" +
+                "- Establishment: %s\n" +
+                "- Date: %s at %s\n" +
+                "- Booking ID: %d\n" +
+                "- Amount: ₹%.2f\n\n" +
+                "Reason for cancellation: %s\n\n" +
+                "A full refund of ₹%.2f will be processed within 24 hours.\n\n" +
+                "We apologize for any inconvenience caused.\n\n" +
+                "Best regards,\n" +
+                "OpenNova Team",
+                booking.getUser() != null ? booking.getUser().getName() : "Customer",
+                booking.getEstablishment().getName(),
+                booking.getVisitingDate(),
+                booking.getVisitingTime(),
+                booking.getId(),
+                booking.getAmount() != null ? booking.getAmount().doubleValue() : 0.0,
+                reason,
+                booking.getPaymentAmount() != null ? booking.getPaymentAmount().doubleValue() : 0.0
+            );
+            
+            sendEmailSync(to, subject, body);
+            System.out.println("✅ Owner cancellation notification sent to customer: " + to);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send owner cancellation notification: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Send owner cancellation confirmation to establishment
+     */
+    public void sendOwnerCancellationConfirmation(String ownerEmail, com.opennova.model.Booking booking, String reason) {
+        try {
+            String subject = "Booking Cancellation Confirmed - " + booking.getEstablishment().getName();
+            String body = String.format(
+                "Dear Owner,\n\n" +
+                "Your cancellation of the following booking has been processed:\n\n" +
+                "Booking Details:\n" +
+                "- Customer: %s (%s)\n" +
+                "- Date: %s at %s\n" +
+                "- Booking ID: %d\n" +
+                "- Amount: ₹%.2f\n\n" +
+                "Cancellation reason: %s\n\n" +
+                "The customer has been notified and will receive a full refund of ₹%.2f within 24 hours.\n\n" +
+                "Best regards,\n" +
+                "OpenNova Team",
+                booking.getUser() != null ? booking.getUser().getName() : "Customer",
                 booking.getUserEmail(),
                 booking.getVisitingDate(),
                 booking.getVisitingTime(),
                 booking.getId(),
-                booking.getTransactionId(),
-                itemsDetails,
-                booking.getAmount().doubleValue(),
-                booking.getPaymentAmount().doubleValue(),
-                booking.getAmount().doubleValue() - booking.getPaymentAmount().doubleValue(),
-                "http://localhost:3000" // You can make this configurable
+                booking.getAmount() != null ? booking.getAmount().doubleValue() : 0.0,
+                reason,
+                booking.getPaymentAmount() != null ? booking.getPaymentAmount().doubleValue() : 0.0
             );
             
-            sendEmail(booking.getEstablishment().getOwner().getEmail(), subject, body);
-            System.out.println("✅ Sent new booking notification to owner: " + booking.getEstablishment().getOwner().getEmail());
+            sendEmailSync(ownerEmail, subject, body);
+            System.out.println("✅ Owner cancellation confirmation sent to: " + ownerEmail);
         } catch (Exception e) {
-            System.err.println("Failed to send new booking notification to owner: " + e.getMessage());
+            System.err.println("❌ Failed to send owner cancellation confirmation: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
+    /**
+     * Send account suspension notification to user
+     */
+    public void sendAccountSuspensionEmail(com.opennova.model.User user) {
+        try {
+            String subject = "Account Suspended - OpenNova";
+            String body = String.format("""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="color: #2563eb; margin-bottom: 10px;">OpenNova</h1>
+                            <h2 style="color: #dc2626; margin: 0;">Account Suspended</h2>
+                        </div>
+                        
+                        <div style="background-color: #fef2f2; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #dc2626;">
+                            <h3 style="color: #991b1b; margin-top: 0;">Account Status Update</h3>
+                            <p>Dear %s,</p>
+                            <p>Your OpenNova account has been suspended by our administrators.</p>
+                        </div>
+                        
+                        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #374151; margin-top: 0;">What this means:</h4>
+                            <ul style="color: #6b7280;">
+                                <li>You will not be able to log in to your account</li>
+                                <li>All your bookings and data remain safe</li>
+                                <li>You can contact support for assistance</li>
+                            </ul>
+                        </div>
+                        
+                        <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #1e40af; margin-top: 0;">Need Help?</h4>
+                            <p>If you believe this is a mistake or need assistance, please contact our support team:</p>
+                            <p><strong>Email:</strong> <a href="mailto:support@opennova.com" style="color: #2563eb;">support@opennova.com</a></p>
+                            <p><strong>Subject:</strong> Account Suspension - %s</p>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 30px;">
+                            <p style="color: #6b7280; font-size: 14px;">
+                                Thank you for your understanding.<br>
+                                OpenNova Support Team
+                            </p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """, user.getName(), user.getEmail());
+            
+            sendEmailSync(user.getEmail(), subject, body);
+            System.out.println("📧 Account suspension email sent to: " + user.getEmail());
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send account suspension email: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Send account activation notification to user
+     */
+    public void sendAccountActivationEmail(com.opennova.model.User user) {
+        try {
+            String subject = "Account Activated - OpenNova";
+            String body = String.format("""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="color: #2563eb; margin-bottom: 10px;">OpenNova</h1>
+                            <h2 style="color: #059669; margin: 0;">Account Activated</h2>
+                        </div>
+                        
+                        <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #059669;">
+                            <h3 style="color: #065f46; margin-top: 0;">Welcome Back!</h3>
+                            <p>Dear %s,</p>
+                            <p>Great news! Your OpenNova account has been activated and you can now access the platform.</p>
+                        </div>
+                        
+                        <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #374151; margin-top: 0;">What you can do now:</h4>
+                            <ul style="color: #6b7280;">
+                                <li>Log in to your account</li>
+                                <li>Browse and book establishments</li>
+                                <li>Manage your bookings</li>
+                                <li>Leave reviews and ratings</li>
+                            </ul>
+                        </div>
+                        
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <a href="http://localhost:3000/auth/login" 
+                               style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                                Log In Now
+                            </a>
+                        </div>
+                        
+                        <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="color: #1e40af; margin-top: 0;">Need Help?</h4>
+                            <p>If you have any questions, feel free to contact our support team:</p>
+                            <p><strong>Email:</strong> <a href="mailto:support@opennova.com" style="color: #2563eb;">support@opennova.com</a></p>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 30px;">
+                            <p style="color: #6b7280; font-size: 14px;">
+                                Welcome back to OpenNova!<br>
+                                OpenNova Support Team
+                            </p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """, user.getName());
+            
+            sendEmailSync(user.getEmail(), subject, body);
+            System.out.println("📧 Account activation email sent to: " + user.getEmail());
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send account activation email: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }

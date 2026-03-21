@@ -32,6 +32,22 @@ public class EstablishmentRequest {
     @Size(max = 255)
     private String address;
 
+    @Size(max = 100)
+    private String city;
+
+    @Size(max = 100)
+    private String state;
+
+    @Size(max = 10)
+    private String pincode;
+
+    @Size(max = 20)
+    @Column(name = "phone_number")
+    private String phoneNumber;
+
+    @Size(max = 255)
+    private String password;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
@@ -76,6 +92,21 @@ public class EstablishmentRequest {
 
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+
+    public String getPincode() { return pincode; }
+    public void setPincode(String pincode) { this.pincode = pincode; }
+
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }

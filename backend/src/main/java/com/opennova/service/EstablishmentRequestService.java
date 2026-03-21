@@ -16,6 +16,9 @@ public class EstablishmentRequestService {
 
     @Autowired
     private EstablishmentRequestRepository establishmentRequestRepository;
+    
+    @Autowired
+    private EmailService emailService;
 
     public EstablishmentRequest createRequest(EstablishmentRequest request) {
         request.setStatus(RequestStatus.PENDING);
@@ -75,6 +78,61 @@ public class EstablishmentRequestService {
         } catch (Exception e) {
             System.err.println("Failed to get user recent requests: " + e.getMessage());
             return new java.util.ArrayList<>();
+        }
+    }
+
+    // Admin methods
+    public long getPendingRequestsCount() {
+        return establishmentRequestRepository.countByStatus(RequestStatus.PENDING);
+    }
+
+    public EstablishmentRequest approveRequest(Long id) {
+        try {
+            Optional<EstablishmentRequest> requestOpt = establishmentRequestRepository.findById(id);
+            if (requestOpt.isPresent()) {
+                EstablishmentRequest request = requestOpt.get();
+                request.setStatus(RequestStatus.APPROVED);
+                request.setUpdatedAt(LocalDateTime.now());
+                EstablishmentRequest savedRequest = establishmentRequestRepository.save(request);
+                
+                // NOTE: Email with credentials is sent by AdminController.approveRequest()
+                // No need to send duplicate email here
+                System.out.println("✅ Request approved successfully - email will be sent by AdminController");
+                
+                return savedRequest;
+            }
+            return null;
+        } catch (Exception e) {
+            System.err.println("Error approving request: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public EstablishmentRequest rejectRequest(Long id, String reason) {
+        try {
+            Optional<EstablishmentRequest> requestOpt = establishmentRequestRepository.findById(id);
+            if (requestOpt.isPresent()) {
+                EstablishmentRequest request = requestOpt.get();
+                request.setStatus(RequestStatus.REJECTED);
+                request.setAdminNotes(reason);
+                request.setUpdatedAt(LocalDateTime.now());
+                EstablishmentRequest savedRequest = establishmentRequestRepository.save(request);
+                
+                // Send rejection email to user
+                try {
+                    String userEmail = request.getUser().getEmail();
+                    String establishmentName = request.getName();
+                    emailService.sendEstablishmentRequestRejectionEmail(userEmail, establishmentName, reason);
+                } catch (Exception e) {
+                    System.err.println("Failed to send rejection email: " + e.getMessage());
+                }
+                
+                return savedRequest;
+            }
+            return null;
+        } catch (Exception e) {
+            System.err.println("Error rejecting request: " + e.getMessage());
+            return null;
         }
     }
 }

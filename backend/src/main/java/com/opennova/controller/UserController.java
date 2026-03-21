@@ -2,9 +2,11 @@ package com.opennova.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMethod;
 import com.opennova.service.UserService;
 import com.opennova.service.SharedStateService;
 import com.opennova.service.ReviewService;
@@ -43,6 +45,9 @@ public class UserController {
     
     @Autowired
     private com.opennova.service.EmailService emailService;
+    
+    @Autowired
+    private com.opennova.service.BookingService bookingService;
 
     @GetMapping("/stats")
     public ResponseEntity<?> getUserStats() {
@@ -172,6 +177,70 @@ public class UserController {
             return ResponseEntity.badRequest().body(error);
         }
     }
+    
+    /**
+     * Create a new booking
+     */
+    @PostMapping("/bookings")
+    public ResponseEntity<?> createBooking(
+            @RequestParam("establishmentId") Long establishmentId,
+            @RequestParam("visitingDate") String visitingDate,
+            @RequestParam("visitingTime") String visitingTime,
+            @RequestParam("selectedItems") String selectedItems,
+            @RequestParam("totalAmount") Double totalAmount,
+            @RequestParam("paymentAmount") Double paymentAmount,
+            @RequestParam("transactionId") String transactionId,
+            @RequestParam("transactionRef") String transactionRef,
+            @RequestParam(value = "paymentVerified", defaultValue = "false") String paymentVerified,
+            @RequestParam(value = "verificationId", required = false) String verificationId,
+            Authentication authentication) {
+        
+        try {
+            // Get authenticated user
+            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+            com.opennova.model.User user = userPrincipal.getUser();
+            
+            System.out.println("📝 Creating booking for user: " + user.getEmail());
+            System.out.println("🏨 Establishment ID: " + establishmentId);
+            System.out.println("📅 Visit Date: " + visitingDate + " at " + visitingTime);
+            System.out.println("💰 Amount: ₹" + totalAmount + " (Payment: ₹" + paymentAmount + ")");
+            System.out.println("🔗 Transaction: " + transactionId + " (Ref: " + transactionRef + ")");
+            
+            // Create booking using BookingService
+            com.opennova.model.Booking booking = bookingService.createBooking(
+                user.getId(),
+                establishmentId,
+                visitingDate,
+                visitingTime,
+                selectedItems,
+                totalAmount,
+                paymentAmount,
+                transactionRef, // Use transaction reference as the booking transaction ID
+                null // No payment screenshot for screenshot verification method
+            );
+            
+            System.out.println("✅ Booking created successfully: ID " + booking.getId());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Booking created successfully");
+            response.put("bookingId", booking.getId());
+            response.put("transactionId", booking.getTransactionId());
+            response.put("status", booking.getStatus().toString());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to create booking: " + e.getMessage());
+            e.printStackTrace();
+            
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Failed to create booking: " + e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
 
     @GetMapping("/recent-bookings")
     public ResponseEntity<?> getRecentBookings() {
@@ -224,6 +293,65 @@ public class UserController {
             e.printStackTrace();
             Map<String, String> error = new HashMap<>();
             error.put("message", "Failed to fetch recent bookings: " + e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
+     * Get all bookings for the authenticated user
+     */
+    @GetMapping("/bookings")
+    public ResponseEntity<?> getAllBookings() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            User user = userService.findByEmail(email);
+            
+            if (user == null) {
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "User not found");
+                return ResponseEntity.status(401).body(error);
+            }
+            
+            System.out.println("📋 Fetching all bookings for user: " + email);
+            
+            // Get all bookings from database
+            List<com.opennova.model.Booking> allBookings = bookingRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+            List<Map<String, Object>> bookingList = new ArrayList<>();
+            
+            for (com.opennova.model.Booking booking : allBookings) {
+                Map<String, Object> bookingMap = new HashMap<>();
+                bookingMap.put("id", booking.getId());
+                bookingMap.put("establishmentName", booking.getEstablishment().getName());
+                bookingMap.put("establishmentType", booking.getEstablishment().getType().toString());
+                bookingMap.put("establishmentId", booking.getEstablishment().getId());
+                bookingMap.put("visitingDate", booking.getVisitingDate());
+                bookingMap.put("visitingTime", booking.getVisitingTime());
+                bookingMap.put("status", booking.getStatus().toString());
+                bookingMap.put("amount", booking.getAmount() != null ? booking.getAmount().doubleValue() : 0.0);
+                bookingMap.put("paymentAmount", booking.getPaymentAmount() != null ? booking.getPaymentAmount().doubleValue() : 0.0);
+                bookingMap.put("createdAt", booking.getCreatedAt().toString());
+                bookingMap.put("transactionId", booking.getTransactionId());
+                
+                // Add QR code if available
+                if (booking.getQrCode() != null && !booking.getQrCode().isEmpty()) {
+                    bookingMap.put("hasQrCode", true);
+                    bookingMap.put("qrCode", booking.getQrCode());
+                } else {
+                    bookingMap.put("hasQrCode", false);
+                }
+                
+                bookingList.add(bookingMap);
+            }
+            
+            System.out.println("✅ Found " + bookingList.size() + " total bookings for user: " + email);
+            
+            return ResponseEntity.ok(bookingList);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to fetch all bookings: " + e.getMessage());
+            e.printStackTrace();
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Failed to fetch all bookings: " + e.getMessage());
             return ResponseEntity.badRequest().body(error);
         }
     }
@@ -530,9 +658,14 @@ public class UserController {
             String type = (String) requestData.get("type");
             String establishmentEmail = (String) requestData.get("email");
             String address = (String) requestData.get("address");
+            String city = (String) requestData.get("city");
+            String state = (String) requestData.get("state");
+            String pincode = (String) requestData.get("pincode");
+            String phoneNumber = (String) requestData.get("phoneNumber");
+            String password = (String) requestData.get("password");
             String notes = (String) requestData.get("notes");
             
-            System.out.println("Extracted fields - Name: " + name + ", Type: " + type + ", Email: " + establishmentEmail + ", Address: " + address);
+            System.out.println("Extracted fields - Name: " + name + ", Type: " + type + ", Email: " + establishmentEmail + ", Address: " + address + ", City: " + city);
             
             if (name == null || name.trim().isEmpty()) {
                 System.err.println("Validation failed: Establishment name is required");
@@ -562,6 +695,34 @@ public class UserController {
                 return ResponseEntity.badRequest().body(error);
             }
             
+            if (city == null || city.trim().isEmpty()) {
+                System.err.println("Validation failed: City is required");
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "City is required");
+                return ResponseEntity.badRequest().body(error);
+            }
+            
+            if (state == null || state.trim().isEmpty()) {
+                System.err.println("Validation failed: State is required");
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "State is required");
+                return ResponseEntity.badRequest().body(error);
+            }
+            
+            if (pincode == null || pincode.trim().isEmpty()) {
+                System.err.println("Validation failed: Pincode is required");
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Pincode is required");
+                return ResponseEntity.badRequest().body(error);
+            }
+            
+            if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+                System.err.println("Validation failed: Phone number is required");
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Phone number is required");
+                return ResponseEntity.badRequest().body(error);
+            }
+            
             // Validate establishment type
             EstablishmentType establishmentType;
             try {
@@ -581,6 +742,11 @@ public class UserController {
             request.setType(establishmentType);
             request.setEmail(establishmentEmail.trim());
             request.setAddress(address.trim());
+            request.setCity(city.trim());
+            request.setState(state.trim());
+            request.setPincode(pincode.trim());
+            request.setPhoneNumber(phoneNumber.trim());
+            request.setPassword(password != null ? password.trim() : "");
             request.setNotes(notes != null ? notes.trim() : "");
             
             System.out.println("Creating establishment request with validated data");
@@ -656,6 +822,220 @@ public class UserController {
         }
     }
 
+    /**
+     * Cancel a booking with 2-hour refund policy
+     */
+    @PutMapping("/bookings/{id}/cancel")
+    public ResponseEntity<?> cancelBooking(@PathVariable Long id, Authentication authentication) {
+        try {
+            // Get authenticated user
+            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+            com.opennova.model.User user = userPrincipal.getUser();
+            
+            System.out.println("🚫 Cancelling booking ID: " + id + " for user: " + user.getEmail());
+            
+            // Cancel booking using BookingService
+            com.opennova.model.Booking cancelledBooking = bookingService.cancelBooking(id, user.getId());
+            
+            // Determine refund status message
+            String refundMessage;
+            boolean isFullRefund = cancelledBooking.getRefundStatus() == com.opennova.model.RefundStatus.APPROVED;
+            
+            if (isFullRefund) {
+                refundMessage = "Full refund will be processed within 24 hours.";
+            } else {
+                refundMessage = "No refund available due to 2-hour cancellation policy.";
+            }
+            
+            System.out.println("✅ Booking cancelled successfully. Refund status: " + cancelledBooking.getRefundStatus());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Booking cancelled successfully. " + refundMessage);
+            response.put("bookingId", cancelledBooking.getId());
+            response.put("refundStatus", cancelledBooking.getRefundStatus().toString());
+            response.put("isFullRefund", isFullRefund);
+            response.put("cancelledAt", cancelledBooking.getCancelledAt().toString());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to cancel booking: " + e.getMessage());
+            e.printStackTrace();
+            
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(400).body(error);
+        }
+    }
+
+    @PostMapping("/bookings/{id}/delete")
+    @CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3002", "http://127.0.0.1:3002", "http://localhost:3003", "http://127.0.0.1:3003"})
+    public ResponseEntity<?> deleteBookingPost(@PathVariable Long id, Authentication authentication) {
+        try {
+            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+            com.opennova.model.User user = userPrincipal.getUser();
+            
+            System.out.println("🗑️ Deleting booking ID: " + id + " for user: " + user.getEmail());
+            
+            // Check if booking exists and belongs to user
+            com.opennova.model.Booking booking = bookingService.findById(id);
+            if (booking == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "Booking not found"));
+            }
+            
+            if (!booking.getUser().getId().equals(user.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "Unauthorized to delete this booking"));
+            }
+            
+            // Only allow deletion of cancelled bookings
+            if (booking.getStatus() != com.opennova.model.BookingStatus.CANCELLED) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Only cancelled bookings can be deleted"));
+            }
+            
+            bookingService.deleteBooking(id);
+            
+            System.out.println("✅ Booking deleted successfully: " + id);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Booking deleted successfully"
+            ));
+        } catch (Exception e) {
+            System.err.println("❌ Failed to delete booking: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "Failed to delete booking: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/bookings/{id}")
+    @CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3002", "http://127.0.0.1:3002", "http://localhost:3003", "http://127.0.0.1:3003"})
+    public ResponseEntity<?> deleteBooking(@PathVariable Long id, Authentication authentication) {
+        try {
+            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+            com.opennova.model.User user = userPrincipal.getUser();
+            
+            System.out.println("🗑️ Deleting booking ID: " + id + " for user: " + user.getEmail());
+            
+            // Check if booking exists and belongs to user
+            com.opennova.model.Booking booking = bookingService.findById(id);
+            if (booking == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "Booking not found"));
+            }
+            
+            if (!booking.getUser().getId().equals(user.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "Unauthorized to delete this booking"));
+            }
+            
+            // Only allow deletion of cancelled bookings
+            if (booking.getStatus() != com.opennova.model.BookingStatus.CANCELLED) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Only cancelled bookings can be deleted"));
+            }
+            
+            bookingService.deleteBooking(id);
+            
+            System.out.println("✅ Booking deleted successfully: " + id);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Booking deleted successfully"
+            ));
+        } catch (Exception e) {
+            System.err.println("❌ Failed to delete booking: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "Failed to delete booking: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get detailed booking information
+     */
+    @GetMapping("/bookings/{id}")
+    public ResponseEntity<?> getBookingDetails(@PathVariable Long id, Authentication authentication) {
+        try {
+            // Get authenticated user
+            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
+                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
+            com.opennova.model.User user = userPrincipal.getUser();
+            
+            System.out.println("📋 Fetching booking details for ID: " + id + " by user: " + user.getEmail());
+            
+            // Get booking from database
+            com.opennova.model.Booking booking = bookingService.getBookingById(id);
+            
+            if (booking == null) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "Booking not found");
+                return ResponseEntity.status(404).body(error);
+            }
+            
+            // Verify user owns this booking
+            if (!booking.getUser().getId().equals(user.getId())) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "Unauthorized to view this booking");
+                return ResponseEntity.status(403).body(error);
+            }
+            
+            // Build detailed response
+            Map<String, Object> bookingDetails = new HashMap<>();
+            bookingDetails.put("id", booking.getId());
+            bookingDetails.put("establishmentName", booking.getEstablishment().getName());
+            bookingDetails.put("establishmentType", booking.getEstablishment().getType().toString());
+            bookingDetails.put("establishmentAddress", booking.getEstablishment().getAddress());
+            bookingDetails.put("establishmentPhone", booking.getEstablishment().getPhoneNumber());
+            bookingDetails.put("establishmentEmail", booking.getEstablishment().getEmail());
+            bookingDetails.put("visitingDate", booking.getVisitingDate());
+            bookingDetails.put("visitingTime", booking.getVisitingTime());
+            bookingDetails.put("status", booking.getStatus().toString());
+            bookingDetails.put("amount", booking.getAmount() != null ? booking.getAmount().doubleValue() : 0.0);
+            bookingDetails.put("paymentAmount", booking.getPaymentAmount() != null ? booking.getPaymentAmount().doubleValue() : 0.0);
+            bookingDetails.put("transactionId", booking.getTransactionId());
+            bookingDetails.put("selectedItems", booking.getSelectedItems());
+            bookingDetails.put("createdAt", booking.getCreatedAt().toString());
+            
+            if (booking.getConfirmedAt() != null) {
+                bookingDetails.put("confirmedAt", booking.getConfirmedAt().toString());
+            }
+            
+            if (booking.getCancelledAt() != null) {
+                bookingDetails.put("cancelledAt", booking.getCancelledAt().toString());
+                bookingDetails.put("cancellationReason", booking.getCancellationReason());
+                bookingDetails.put("refundStatus", booking.getRefundStatus().toString());
+            }
+            
+            if (booking.getQrCode() != null && !booking.getQrCode().isEmpty()) {
+                bookingDetails.put("qrCode", booking.getQrCode());
+            }
+            
+            System.out.println("✅ Booking details fetched successfully for ID: " + id);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("booking", bookingDetails);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to fetch booking details: " + e.getMessage());
+            e.printStackTrace();
+            
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Failed to fetch booking details: " + e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
     @PostMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody Map<String, String> passwordData) {
         try {
@@ -692,39 +1072,6 @@ public class UserController {
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", "Failed to change password");
-            return ResponseEntity.badRequest().body(error);
-        }
-    }
-    
-    /**
-     * Test email functionality
-     */
-    @PostMapping("/test-email")
-    public ResponseEntity<?> testEmail(Authentication authentication) {
-        try {
-            com.opennova.security.CustomUserDetailsService.CustomUserPrincipal userPrincipal = 
-                (com.opennova.security.CustomUserDetailsService.CustomUserPrincipal) authentication.getPrincipal();
-            User user = userPrincipal.getUser();
-            
-            System.out.println("🧪 Testing email functionality for user: " + user.getEmail());
-            
-            // Send test email
-            emailService.sendTestEmail(user.getEmail());
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Test email sent successfully to " + user.getEmail());
-            response.put("email", user.getEmail());
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            System.err.println("❌ Test email failed: " + e.getMessage());
-            e.printStackTrace();
-            
-            Map<String, String> error = new HashMap<>();
-            error.put("success", "false");
-            error.put("message", "Failed to send test email: " + e.getMessage());
             return ResponseEntity.badRequest().body(error);
         }
     }

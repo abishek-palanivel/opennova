@@ -2,7 +2,7 @@
  * Utility functions for handling image URLs
  */
 
-const API_BASE_URL = 'http://localhost:9000';
+const API_BASE_URL = 'http://localhost:8080';
 
 /**
  * Get the correct image URL for uploaded files
@@ -36,13 +36,13 @@ export const getImageUrl = (imagePath) => {
   if (pathParts.length >= 2) {
     const directory = pathParts[0];
     const filename = pathParts.slice(1).join('/');
-    const imageUrl = `${API_BASE_URL}/api/files/view/${directory}/${filename}`;
+    const imageUrl = `${API_BASE_URL}/api/images/${directory}/${filename}`;
     console.log('Generated image URL:', imageUrl, 'from path:', imagePath);
     return imageUrl;
   }
   
   // Fallback to direct uploads path if path format is unexpected
-  const fallbackUrl = `${API_BASE_URL}/uploads/${cleanPath}`;
+  const fallbackUrl = `${API_BASE_URL}/api/images/default/${cleanPath}`;
   console.log('Using fallback URL:', fallbackUrl, 'from path:', imagePath);
   return fallbackUrl;
 };

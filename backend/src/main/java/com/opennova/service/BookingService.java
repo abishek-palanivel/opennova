@@ -99,6 +99,26 @@ public class BookingService {
             booking.setVisitingTime(visitingTime);
             booking.setSelectedItems(selectedItems);
             
+            // CRITICAL FIX: Set booking_date field to avoid NULL constraint violation
+            // Parse visitingDate and visitingTime to create a proper LocalDateTime
+            try {
+                if (visitingDate != null && visitingTime != null) {
+                    // Assume visitingDate is in format "YYYY-MM-DD" and visitingTime is in format "HH:MM"
+                    String dateTimeString = visitingDate + "T" + visitingTime + ":00";
+                    LocalDateTime bookingDateTime = LocalDateTime.parse(dateTimeString);
+                    booking.setBookingDate(bookingDateTime);
+                    System.out.println("✅ Set booking_date to: " + bookingDateTime);
+                } else {
+                    // Fallback to current time if parsing fails
+                    booking.setBookingDate(LocalDateTime.now());
+                    System.out.println("⚠️ Using current time as booking_date fallback");
+                }
+            } catch (Exception e) {
+                System.err.println("❌ Failed to parse booking date/time: " + e.getMessage());
+                booking.setBookingDate(LocalDateTime.now());
+                System.out.println("⚠️ Using current time as booking_date fallback due to parsing error");
+            }
+            
             // Convert Double to BigDecimal for proper database storage
             booking.setAmount(BigDecimal.valueOf(totalAmount != null ? totalAmount : 0.0));
             
@@ -244,6 +264,9 @@ public class BookingService {
                 savedBooking,
                 hoursUntilBooking
             );
+            
+            // 3. Send notification to admin about cancellation
+            emailService.sendBookingCancellationToAdmin(savedBooking);
         } catch (Exception e) {
             System.err.println("Failed to send cancellation emails: " + e.getMessage());
             // Don't fail the cancellation if email fails
@@ -334,14 +357,35 @@ public class BookingService {
         BookingStatus oldStatus = booking.getStatus();
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancelledAt(LocalDateTime.now());
-        booking.setCancellationReason(reason);
+        booking.setCancellationReason("Cancelled by establishment: " + reason);
         
         // Owner cancellation always results in full refund
         booking.setRefundStatus(RefundStatus.APPROVED);
 
         Booking savedBooking = bookingRepository.save(booking);
         
-        // Notifications can be added here if needed
+        // Send notifications
+        try {
+            // 1. Send cancellation notification to customer
+            emailService.sendOwnerCancellationNotification(savedBooking, reason);
+            
+            // 2. Send confirmation to owner
+            emailService.sendOwnerCancellationConfirmation(
+                savedBooking.getEstablishment().getEmail(),
+                savedBooking,
+                reason
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to send owner cancellation emails: " + e.getMessage());
+            // Don't fail the cancellation if email fails
+        }
+
+        // Notify real-time updates
+        try {
+            realTimeUpdateService.notifyBookingUpdate(savedBooking);
+        } catch (Exception e) {
+            System.err.println("Failed to send real-time update: " + e.getMessage());
+        }
         
         return savedBooking;
     }
@@ -364,6 +408,23 @@ public class BookingService {
         }
         
         bookingRepository.delete(booking);
+    }
+
+    public void deleteBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+            .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        // Send notifications before deletion (if service is available)
+        if (notificationService != null) {
+            try {
+                notificationService.notifyBookingDeleted(booking, "User");
+            } catch (Exception e) {
+                System.err.println("Notification service error: " + e.getMessage());
+            }
+        }
+        
+        bookingRepository.delete(booking);
+        System.out.println("🗑️ Booking deleted from database: " + bookingId);
     }
 
     public Booking updateBooking(Booking booking) {
@@ -427,6 +488,10 @@ public class BookingService {
         notificationService.notifyBookingStatusChange(savedBooking, oldStatus, BookingStatus.CANCELLED);
         
         return savedBooking;
+    }
+
+    public Booking rejectBooking(Long bookingId, Long establishmentId) {
+        return rejectBooking(bookingId, establishmentId, "Booking rejected by establishment");
     }
     
 
@@ -659,5 +724,86 @@ public class BookingService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch visit statistics: " + e.getMessage());
         }
+    }
+
+    // Admin analytics methods
+    public long getTotalBookings() {
+        return bookingRepository.count();
+    }
+
+    public long getConfirmedBookingsCount() {
+        return bookingRepository.countByStatus(BookingStatus.CONFIRMED);
+    }
+
+    public long getPendingBookingsCount() {
+        return bookingRepository.countByStatus(BookingStatus.PENDING);
+    }
+
+    public long getCancelledBookingsCount() {
+        return bookingRepository.countByStatus(BookingStatus.CANCELLED);
+    }
+
+    public BigDecimal getTotalRevenue() {
+        try {
+            // Calculate revenue from all bookings with PAID payment status
+            BigDecimal totalRevenue = bookingRepository.sumPaidAmountByPaymentStatus();
+            
+            System.out.println("📊 Total Revenue Calculation: " + totalRevenue);
+            return totalRevenue != null ? totalRevenue : BigDecimal.ZERO;
+        } catch (Exception e) {
+            System.err.println("Error calculating total revenue: " + e.getMessage());
+            return BigDecimal.ZERO;
+        }
+    }
+
+    public BigDecimal getMonthlyRevenue() {
+        // Mock implementation - replace with actual monthly calculation
+        return getTotalRevenue().divide(BigDecimal.valueOf(12));
+    }
+
+    public BigDecimal getDailyRevenue() {
+        // Mock implementation - replace with actual daily calculation
+        return getTotalRevenue().divide(BigDecimal.valueOf(365));
+    }
+
+    public double getRevenueGrowthRate() {
+        // Mock implementation - replace with actual growth calculation
+        return 15.5; // 15.5% growth
+    }
+
+    public List<Map<String, Object>> getMonthlyBookingTrends() {
+        // Mock implementation - replace with actual monthly data
+        List<Map<String, Object>> trends = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            Map<String, Object> monthData = new HashMap<>();
+            monthData.put("month", "Month " + (i + 1));
+            monthData.put("bookings", getTotalBookings() / (12 - i));
+            monthData.put("revenue", getTotalRevenue().divide(BigDecimal.valueOf(12 - i)));
+            trends.add(monthData);
+        }
+        return trends;
+    }
+    
+    public List<Booking> findByEstablishmentId(Long establishmentId) {
+        return getBookingsByEstablishmentId(establishmentId);
+    }
+    
+    public Booking findByTransactionId(String transactionId) {
+        System.out.println("🔍 BookingService: Looking for booking with transaction ID: " + transactionId);
+        Booking booking = bookingRepository.findByTransactionId(transactionId);
+        if (booking != null) {
+            System.out.println("✅ BookingService: Found booking ID " + booking.getId() + " for transaction: " + transactionId);
+        } else {
+            System.out.println("❌ BookingService: No booking found for transaction: " + transactionId);
+        }
+        return booking;
+    }
+    
+    public Booking findById(Long id) {
+        return bookingRepository.findById(id).orElse(null);
+    }
+    
+    public Booking save(Booking booking) {
+        return bookingRepository.save(booking);
     }
 }

@@ -9,6 +9,7 @@ import EstablishmentStatus, { BookingAvailability } from '../common/Establishmen
 import { useRealTimeStatus } from '../../hooks/useRealTimeStatus';
 import { formatOperatingHours, getTodayOperatingHours, getWeeklyScheduleDisplay } from '../../utils/timeUtils';
 import { getImageUrl } from '../../utils/imageUtils';
+import ImageWithFallback from '../common/ImageWithFallback';
 
 const EstablishmentDetails = () => {
   const { id } = useParams();
@@ -138,19 +139,12 @@ const EstablishmentDetails = () => {
           <div className="flex items-center justify-center mb-6">
             {establishment.profileImagePath ? (
               <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-xl">
-                <img
+                <ImageWithFallback
                   src={getImageUrl(establishment.profileImagePath)}
                   alt={establishment.name}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback to default icon if image fails to load
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
-                  }}
+                  type={establishment.type}
                 />
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center text-5xl shadow-xl" style={{display: 'none'}}>
-                  {getEstablishmentIcon(establishment.type)}
-                </div>
               </div>
             ) : (
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center text-5xl shadow-xl">
@@ -174,10 +168,11 @@ const EstablishmentDetails = () => {
       {/* Hero Image Section */}
       {establishment.profileImagePath && (
         <div className="relative h-64 md:h-80 rounded-3xl overflow-hidden shadow-2xl">
-          <img
+          <ImageWithFallback
             src={getImageUrl(establishment.profileImagePath)}
             alt={establishment.name}
             className="w-full h-full object-cover"
+            type={establishment.type}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           <div className="absolute bottom-6 left-6 text-white">
@@ -400,13 +395,11 @@ const EstablishmentDetails = () => {
                 {/* Menu Item Image */}
                 {item.imagePath && (
                   <div className="mb-4 rounded-xl overflow-hidden">
-                    <img
+                    <ImageWithFallback
                       src={getImageUrl(item.imagePath)}
                       alt={item.name}
                       className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
+                      type="menu"
                     />
                   </div>
                 )}
@@ -474,13 +467,11 @@ const EstablishmentDetails = () => {
                 {/* Doctor Image */}
                 {doctor.imagePath && (
                   <div className="mb-4 rounded-xl overflow-hidden">
-                    <img
+                    <ImageWithFallback
                       src={getImageUrl(doctor.imagePath)}
                       alt={`Dr. ${doctor.name}`}
                       className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
+                      type="hospital"
                     />
                   </div>
                 )}
@@ -525,13 +516,11 @@ const EstablishmentDetails = () => {
                 {/* Collection Item Image */}
                 {item.imagePath && (
                   <div className="mb-4 rounded-xl overflow-hidden">
-                    <img
+                    <ImageWithFallback
                       src={getImageUrl(item.imagePath)}
                       alt={item.itemName}
                       className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
+                      type="shop"
                     />
                   </div>
                 )}
@@ -647,13 +636,11 @@ const EstablishmentDetails = () => {
                     <div key={item.id} className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors">
                       {item.imagePath && (
                         <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
-                          <img
-                            src={`http://localhost:9000/uploads/${item.imagePath}`}
+                          <ImageWithFallback
+                            src={getImageUrl(item.imagePath)}
                             alt={item.name}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
+                            type="menu"
                           />
                         </div>
                       )}
@@ -685,13 +672,11 @@ const EstablishmentDetails = () => {
                     <div key={doctor.id} className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg border border-red-200 hover:bg-red-100 transition-colors">
                       {doctor.imagePath && (
                         <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0">
-                          <img
+                          <ImageWithFallback
                             src={getImageUrl(doctor.imagePath)}
                             alt={doctor.name}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
+                            type="hospital"
                           />
                         </div>
                       )}
@@ -717,13 +702,11 @@ const EstablishmentDetails = () => {
                     <div key={item.id} className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 transition-colors">
                       {item.imagePath && (
                         <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
-                          <img
-                            src={`http://localhost:9000/uploads/${item.imagePath}`}
+                          <ImageWithFallback
+                            src={getImageUrl(item.imagePath)}
                             alt={item.itemName}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
+                            type="shop"
                           />
                         </div>
                       )}
@@ -806,13 +789,11 @@ const EstablishmentDetails = () => {
                 <div key={item.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200 hover:shadow-lg transition-all duration-300 transform hover:scale-105">
                   {item.imagePath && (
                     <div className="w-full h-40 rounded-xl overflow-hidden mb-4">
-                      <img
-                        src={`http://localhost:9000/uploads/${item.imagePath}`}
+                      <ImageWithFallback
+                        src={getImageUrl(item.imagePath)}
                         alt={item.name}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
+                        type="menu"
                       />
                     </div>
                   )}
@@ -845,13 +826,11 @@ const EstablishmentDetails = () => {
                 <div key={doctor.id} className="bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl p-6 border border-red-200 hover:shadow-lg transition-all duration-300 transform hover:scale-105">
                   {doctor.imagePath && (
                     <div className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-4">
-                      <img
+                      <ImageWithFallback
                         src={getImageUrl(doctor.imagePath)}
                         alt={doctor.name}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
+                        type="hospital"
                       />
                     </div>
                   )}
@@ -876,13 +855,11 @@ const EstablishmentDetails = () => {
                 <div key={item.id} className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 hover:shadow-lg transition-all duration-300 transform hover:scale-105">
                   {item.imagePath && (
                     <div className="w-full h-40 rounded-xl overflow-hidden mb-4">
-                      <img
-                        src={`http://localhost:9000/uploads/${item.imagePath}`}
+                      <ImageWithFallback
+                        src={getImageUrl(item.imagePath)}
                         alt={item.itemName}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
+                        type="shop"
                       />
                     </div>
                   )}
@@ -1039,13 +1016,11 @@ const EstablishmentDetails = () => {
               {/* Large Image */}
               {selectedMenuItem.imagePath && (
                 <div className="mb-6 rounded-xl overflow-hidden">
-                  <img
+                  <ImageWithFallback
                     src={getImageUrl(selectedMenuItem.imagePath)}
                     alt={selectedMenuItem.name}
                     className="w-full h-64 object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
+                    type="menu"
                   />
                 </div>
               )}
@@ -1178,13 +1153,11 @@ const EstablishmentDetails = () => {
               {/* Doctor Image */}
               {selectedDoctor.imagePath && (
                 <div className="mb-6 rounded-xl overflow-hidden">
-                  <img
+                  <ImageWithFallback
                     src={getImageUrl(selectedDoctor.imagePath)}
                     alt={`Dr. ${selectedDoctor.name}`}
                     className="w-full h-64 object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
+                    type="hospital"
                   />
                 </div>
               )}
@@ -1279,13 +1252,11 @@ const EstablishmentDetails = () => {
               {/* Collection Image */}
               {selectedCollection.imagePath && (
                 <div className="mb-6 rounded-xl overflow-hidden">
-                  <img
+                  <ImageWithFallback
                     src={getImageUrl(selectedCollection.imagePath)}
                     alt={selectedCollection.itemName}
                     className="w-full h-64 object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
+                    type="shop"
                   />
                 </div>
               )}

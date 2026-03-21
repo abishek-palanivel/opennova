@@ -9,6 +9,8 @@ const MyBookings = () => {
   const [filter, setFilter] = useState('ALL');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [bookingDetails, setBookingDetails] = useState(null);
 
   useEffect(() => {
     fetchBookings();
@@ -20,6 +22,55 @@ const MyBookings = () => {
       setBookings(response.data);
     } catch (error) {
       console.error('Failed to fetch bookings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBooking = async (bookingId) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    
+    if (booking.status !== 'CANCELLED') {
+      alert('❌ Only cancelled bookings can be deleted.');
+      return;
+    }
+    
+    if (!window.confirm('Are you sure you want to permanently delete this booking? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await api.post(`/api/user/bookings/${bookingId}/delete`);
+      
+      if (response.data.success) {
+        alert('✅ Booking deleted successfully!');
+        fetchBookings(); // Refresh the list
+      } else {
+        throw new Error(response.data.message || 'Failed to delete booking');
+      }
+    } catch (error) {
+      console.error('Failed to delete booking:', error);
+      alert(`❌ Failed to delete booking: ${error.response?.data?.message || error.message || 'Please try again.'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewDetails = async (bookingId) => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/api/user/bookings/${bookingId}`);
+      
+      if (response.data.success) {
+        setBookingDetails(response.data.booking);
+        setShowDetailsModal(true);
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch booking details');
+      }
+    } catch (error) {
+      console.error('Failed to fetch booking details:', error);
+      alert(`❌ Failed to fetch booking details: ${error.response?.data?.message || error.message || 'Please try again.'}`);
     } finally {
       setLoading(false);
     }
@@ -403,7 +454,19 @@ const MyBookings = () => {
                     </button>
                   )}
 
-                  <button className="bg-gradient-to-r from-slate-500 to-slate-600 text-white px-4 py-2 rounded-2xl text-sm font-semibold hover:from-slate-600 hover:to-slate-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                  {booking.status === 'CANCELLED' && (
+                    <button
+                      onClick={() => handleDeleteBooking(booking.id)}
+                      className="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-2xl text-sm font-semibold hover:from-red-700 hover:to-red-800 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                    >
+                      🗑️ Delete
+                    </button>
+                  )}
+
+                  <button 
+                    onClick={() => handleViewDetails(booking.id)}
+                    className="bg-gradient-to-r from-slate-500 to-slate-600 text-white px-4 py-2 rounded-2xl text-sm font-semibold hover:from-slate-600 hover:to-slate-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                  >
                     📄 View Details
                   </button>
                 </div>
@@ -432,6 +495,193 @@ const MyBookings = () => {
             setSelectedBooking(null);
           }}
         />
+
+        {/* Booking Details Modal */}
+        {showDetailsModal && bookingDetails && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-slate-900">Booking Details</h2>
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      setBookingDetails(null);
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Establishment Info */}
+                  <div className="bg-slate-50 rounded-2xl p-4">
+                    <h3 className="font-bold text-slate-900 mb-3 flex items-center">
+                      <span className="mr-2">🏢</span>
+                      Establishment Information
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Name:</span>
+                        <span className="font-semibold">{bookingDetails.establishmentName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Type:</span>
+                        <span className="font-semibold">{bookingDetails.establishmentType}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Address:</span>
+                        <span className="font-semibold text-right">{bookingDetails.establishmentAddress}</span>
+                      </div>
+                      {bookingDetails.establishmentPhone && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Phone:</span>
+                          <span className="font-semibold">{bookingDetails.establishmentPhone}</span>
+                        </div>
+                      )}
+                      {bookingDetails.establishmentEmail && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Email:</span>
+                          <span className="font-semibold">{bookingDetails.establishmentEmail}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Booking Info */}
+                  <div className="bg-blue-50 rounded-2xl p-4">
+                    <h3 className="font-bold text-blue-900 mb-3 flex items-center">
+                      <span className="mr-2">📅</span>
+                      Booking Information
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Booking ID:</span>
+                        <span className="font-mono font-semibold">#{bookingDetails.id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Date:</span>
+                        <span className="font-semibold">{bookingDetails.visitingDate}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Time:</span>
+                        <span className="font-semibold">{bookingDetails.visitingTime}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Status:</span>
+                        <span className={`font-semibold px-2 py-1 rounded-full text-xs ${getStatusColor(bookingDetails.status)}`}>
+                          {bookingDetails.status}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Created:</span>
+                        <span className="font-semibold">{new Date(bookingDetails.createdAt).toLocaleString()}</span>
+                      </div>
+                      {bookingDetails.confirmedAt && (
+                        <div className="flex justify-between">
+                          <span className="text-blue-700">Confirmed:</span>
+                          <span className="font-semibold">{new Date(bookingDetails.confirmedAt).toLocaleString()}</span>
+                        </div>
+                      )}
+                      {bookingDetails.cancelledAt && (
+                        <div className="flex justify-between">
+                          <span className="text-blue-700">Cancelled:</span>
+                          <span className="font-semibold">{new Date(bookingDetails.cancelledAt).toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payment Info */}
+                  <div className="bg-green-50 rounded-2xl p-4">
+                    <h3 className="font-bold text-green-900 mb-3 flex items-center">
+                      <span className="mr-2">💰</span>
+                      Payment Information
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Total Amount:</span>
+                        <span className="font-semibold">₹{bookingDetails.amount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Paid Amount:</span>
+                        <span className="font-semibold">₹{bookingDetails.paymentAmount}</span>
+                      </div>
+                      {bookingDetails.transactionId && (
+                        <div className="flex justify-between">
+                          <span className="text-green-700">Transaction ID:</span>
+                          <span className="font-mono font-semibold text-xs">{bookingDetails.transactionId}</span>
+                        </div>
+                      )}
+                      {bookingDetails.refundStatus && (
+                        <div className="flex justify-between">
+                          <span className="text-green-700">Refund Status:</span>
+                          <span className="font-semibold">{bookingDetails.refundStatus}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected Items */}
+                  {bookingDetails.selectedItems && (
+                    <div className="bg-purple-50 rounded-2xl p-4">
+                      <h3 className="font-bold text-purple-900 mb-3 flex items-center">
+                        <span className="mr-2">🛍️</span>
+                        Selected Items/Services
+                      </h3>
+                      <div className="text-purple-800 text-sm">
+                        {(() => {
+                          try {
+                            const items = typeof bookingDetails.selectedItems === 'string' 
+                              ? JSON.parse(bookingDetails.selectedItems) 
+                              : bookingDetails.selectedItems || [];
+                            return items.map((item, index) => (
+                              <div key={index} className="flex justify-between items-center py-1 border-b border-purple-200 last:border-b-0">
+                                <span>{item.name || item.itemName || `Dr. ${item.doctorName}` || 'Unknown Item'}</span>
+                                <span className="font-semibold">₹{item.price || item.consultationFee || 0}</span>
+                              </div>
+                            ));
+                          } catch (e) {
+                            return <span>{bookingDetails.selectedItems}</span>;
+                          }
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* QR Code */}
+                  {bookingDetails.qrCode && (
+                    <div className="bg-gray-50 rounded-2xl p-4 text-center">
+                      <h3 className="font-bold text-gray-900 mb-3 flex items-center justify-center">
+                        <span className="mr-2">📱</span>
+                        QR Code
+                      </h3>
+                      <img 
+                        src={`data:image/png;base64,${bookingDetails.qrCode}`} 
+                        alt="Booking QR Code" 
+                        className="mx-auto max-w-48 h-auto border-2 border-gray-200 rounded-lg"
+                      />
+                      <p className="text-xs text-gray-600 mt-2">Show this QR code at the establishment</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      setBookingDetails(null);
+                    }}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-2xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

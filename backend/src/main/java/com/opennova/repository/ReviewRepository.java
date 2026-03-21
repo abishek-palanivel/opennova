@@ -32,4 +32,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Double getAverageRatingByEstablishmentId(@Param("establishmentId") Long establishmentId);
     
     List<Review> findByUserIdOrderByCreatedAtDesc(Long userId);
+    
+    // Missing methods for admin analytics
+    long countByStatus(ReviewStatus status);
+    
+    List<Review> findByStatus(ReviewStatus status);
 }

@@ -22,7 +22,74 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
+
+    // Set up token refresh interval
+    const refreshInterval = setInterval(() => {
+      checkAndRefreshToken();
+    }, 5 * 60 * 1000); // Check every 5 minutes
+
+    return () => clearInterval(refreshInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const isTokenExpired = (token) => {
+    try {
+      const tokenParts = token.split('.');
+      if (tokenParts.length === 3) {
+        const payload = JSON.parse(atob(tokenParts[1]));
+        const now = Date.now() / 1000;
+        return payload.exp < now;
+      }
+    } catch (error) {
+      console.error('Error parsing token:', error);
+      return true;
+    }
+    return true;
+  };
+
+  const isTokenExpiringSoon = (token) => {
+    try {
+      const tokenParts = token.split('.');
+      if (tokenParts.length === 3) {
+        const payload = JSON.parse(atob(tokenParts[1]));
+        const now = Date.now() / 1000;
+        const timeUntilExpiry = payload.exp - now;
+        return timeUntilExpiry < 30 * 60; // Less than 30 minutes
+      }
+    } catch (error) {
+      console.error('Error parsing token:', error);
+      return true;
+    }
+    return true;
+  };
+
+  const checkAndRefreshToken = async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !user) return;
+
+    if (isTokenExpired(token)) {
+      console.log('Token expired, logging out...');
+      logout();
+      return;
+    }
+
+    if (isTokenExpiringSoon(token)) {
+      console.log('Token expiring soon, refreshing...');
+      try {
+        const response = await api.post('/api/auth/refresh');
+        if (response.data && response.data.token) {
+          localStorage.setItem('token', response.data.token);
+          setUser(response.data.user);
+          console.log('Token refreshed successfully');
+        }
+      } catch (error) {
+        console.error('Failed to refresh token:', error);
+        if (error.response?.status === 401) {
+          logout();
+        }
+      }
+    }
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -34,19 +101,8 @@ export const AuthProvider = ({ children }) => {
       }
       
       // Basic token validation - check if it's expired
-      try {
-        const tokenParts = token.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(atob(tokenParts[1]));
-          const now = Date.now() / 1000;
-          if (payload.exp < now) {
-            localStorage.removeItem('token');
-            setUser(null);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (tokenError) {
+      if (isTokenExpired(token)) {
+        console.log('Token expired during profile fetch');
         localStorage.removeItem('token');
         setUser(null);
         setLoading(false);
@@ -60,6 +116,7 @@ export const AuthProvider = ({ children }) => {
       
       // Only remove token if it's actually an auth error, not a network error
       if (error.response?.status === 401 || error.response?.status === 403) {
+        console.log('Authentication failed, clearing token');
         localStorage.removeItem('token');
         setUser(null);
       }
@@ -68,8 +125,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
+  const login = async (email, password, googleToken = null) => {
     try {
+      // Handle Google OAuth login
+      if (googleToken) {
+        localStorage.setItem('token', googleToken);
+        // Fetch user profile with the Google token
+        const response = await api.get('/api/auth/profile', {
+          headers: { Authorization: `Bearer ${googleToken}` }
+        });
+        setUser(response.data);
+        
+        const redirectPath = getPortalRedirectPath(response.data);
+        return { 
+          success: true, 
+          user: response.data,
+          redirectPath 
+        };
+      }
+      
+      // Handle regular email/password login
       const response = await api.post('/api/auth/login', {
         email: email?.trim(),
         password
@@ -114,9 +189,24 @@ export const AuthProvider = ({ children }) => {
         };
       }
       
+      // Handle suspended/deactivated accounts
+      if (error.response?.status === 403 && error.response?.data?.accountStatus === 'SUSPENDED') {
+        return { 
+          success: false, 
+          message: error.response.data.message || 'Your account has been suspended or deactivated.',
+          accountStatus: 'SUSPENDED',
+          supportEmail: error.response.data.supportEmail || 'support@opennova.com',
+          isSuspended: true
+        };
+      }
+      
       return { 
         success: false, 
-        message: error.response?.data?.message || 'Login failed. Please check your credentials and try again.' 
+        message: error.response?.data?.message || 'Login failed. Please check your credentials and try again.',
+        needsSignup: error.response?.data?.needsSignup === 'true',
+        googleUserInfo: error.response?.data?.email ? {
+          email: error.response.data.email
+        } : null
       };
     }
   };
@@ -126,19 +216,9 @@ export const AuthProvider = ({ children }) => {
       case 'ADMIN':
         return '/admin/dashboard';
       case 'OWNER':
-        // Redirect based on establishment type
-        if (user.establishmentType) {
-          switch (user.establishmentType) {
-            case 'HOTEL':
-              return '/owner/hotel-dashboard';
-            case 'HOSPITAL':
-              return '/owner/hospital-dashboard';
-            case 'SHOP':
-              return '/owner/shop-dashboard';
-            default:
-              return '/owner/dashboard';
-          }
-        }
+      case 'HOTEL_OWNER':
+      case 'HOSPITAL_OWNER':
+      case 'SHOP_OWNER':
         return '/owner/dashboard';
       case 'USER':
       default:

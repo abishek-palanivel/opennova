@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import com.opennova.model.*;
 import com.opennova.repository.EstablishmentRepository;
+import com.opennova.repository.UserRepository;
 
 import java.util.List;
 import java.util.Optional;
@@ -28,6 +29,9 @@ public class EstablishmentService {
     private RealTimeUpdateService realTimeUpdateService;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private FileStorageService fileStorageService;
 
     @Autowired
@@ -37,6 +41,22 @@ public class EstablishmentService {
     public Establishment findByEmail(String email) {
         Optional<Establishment> establishment = establishmentRepository.findByEmail(email);
         return establishment.orElse(null);
+    }
+
+    public Establishment findByOwnerEmail(String ownerEmail) {
+        try {
+            // Find establishments where the owner's email matches
+            List<Establishment> establishments = establishmentRepository.findAll();
+            for (Establishment est : establishments) {
+                if (est.getOwner() != null && ownerEmail.equals(est.getOwner().getEmail())) {
+                    return est;
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            System.err.println("Error finding establishment by owner email: " + e.getMessage());
+            return null;
+        }
     }
 
     public Establishment findById(Long id) {
@@ -114,6 +134,10 @@ public class EstablishmentService {
         System.out.println("❌ No establishment could be assigned to user");
         return null;
     }
+    public List<Establishment> findByOwnerId(Long ownerId) {
+        return establishmentRepository.findByOwnerId(ownerId);
+    }
+
 
     public List<Establishment> findAll() {
         // Return all establishments for debugging - we'll filter in the controller
@@ -158,8 +182,8 @@ public class EstablishmentService {
             if (updatedEstablishment.getAddress() != null) {
                 establishment.setAddress(updatedEstablishment.getAddress());
             }
-            if (updatedEstablishment.getContactNumber() != null) {
-                establishment.setContactNumber(updatedEstablishment.getContactNumber());
+            if (updatedEstablishment.getPhoneNumber() != null) {
+                establishment.setPhoneNumber(validateAndCleanPhoneNumber(updatedEstablishment.getPhoneNumber()));
             }
             if (updatedEstablishment.getStatus() != null) {
                 establishment.setStatus(updatedEstablishment.getStatus());
@@ -206,8 +230,8 @@ public class EstablishmentService {
             if (updatedEstablishment.getAddress() != null) {
                 establishment.setAddress(updatedEstablishment.getAddress());
             }
-            if (updatedEstablishment.getContactNumber() != null) {
-                establishment.setContactNumber(updatedEstablishment.getContactNumber());
+            if (updatedEstablishment.getPhoneNumber() != null) {
+                establishment.setPhoneNumber(updatedEstablishment.getPhoneNumber());
             }
             if (updatedEstablishment.getStatus() != null) {
                 establishment.setStatus(updatedEstablishment.getStatus());
@@ -286,8 +310,8 @@ public class EstablishmentService {
             if (updatedEstablishment.getAddress() != null) {
                 establishment.setAddress(updatedEstablishment.getAddress());
             }
-            if (updatedEstablishment.getContactNumber() != null) {
-                establishment.setContactNumber(updatedEstablishment.getContactNumber());
+            if (updatedEstablishment.getPhoneNumber() != null) {
+                establishment.setPhoneNumber(updatedEstablishment.getPhoneNumber());
             }
             if (updatedEstablishment.getStatus() != null) {
                 establishment.setStatus(updatedEstablishment.getStatus());
@@ -444,6 +468,58 @@ public class EstablishmentService {
         }
         return null;
     }
+
+    public Establishment updateActiveStatus(Long id, Boolean isActive) {
+        Optional<Establishment> existingEstablishment = establishmentRepository.findById(id);
+        if (existingEstablishment.isPresent()) {
+            Establishment establishment = existingEstablishment.get();
+            establishment.setIsActive(isActive);
+            establishment.setUpdatedAt(LocalDateTime.now());
+            Establishment savedEstablishment = establishmentRepository.save(establishment);
+            
+            // Send notification email to owner
+            try {
+                if (establishment.getEmail() != null && !establishment.getEmail().trim().isEmpty()) {
+                    String subject = isActive ? "Establishment Activated" : "Establishment Suspended";
+                    String action = isActive ? "activated" : "suspended";
+                    String body = String.format(
+                        "Dear %s,\n\n" +
+                        "Your establishment has been %s by the administrator.\n\n" +
+                        "Establishment Details:\n" +
+                        "Name: %s\n" +
+                        "Type: %s\n" +
+                        "Email: %s\n" +
+                        "Address: %s\n\n" +
+                        "%s\n\n" +
+                        "Best regards,\n" +
+                        "OpenNova Admin Team",
+                        establishment.getName(),
+                        action,
+                        establishment.getName(),
+                        establishment.getType().name(),
+                        establishment.getEmail(),
+                        establishment.getAddress(),
+                        isActive ? "Your establishment is now active and can accept bookings." 
+                                : "Your establishment has been suspended and cannot accept new bookings. Please contact support if you believe this was done in error."
+                    );
+                    
+                    emailService.sendEmail(establishment.getEmail(), subject, body);
+                    System.out.println("Status change notification email sent successfully");
+                }
+            } catch (Exception e) {
+                // Log email error but don't fail the status update
+                System.err.println("Failed to send status change notification email: " + e.getMessage());
+            }
+            
+            // Update real-time state
+            if (establishment.getOwner() != null) {
+                realTimeUpdateService.updateEstablishmentStatus(id, isActive ? "ACTIVE" : "SUSPENDED", establishment.getOwner().getId());
+            }
+            
+            return savedEstablishment;
+        }
+        return null;
+    }
     
     // Real-time status update method for owners
     public Establishment updateStatusByOwner(Long establishmentId, String status, Long ownerId) {
@@ -551,6 +627,19 @@ public class EstablishmentService {
                establishment.getEmail() != null && !establishment.getEmail().trim().isEmpty() &&
                establishment.getAddress() != null && !establishment.getAddress().trim().isEmpty() &&
                establishment.getType() != null;
+    }
+
+    public String validateAndCleanPhoneNumber(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            return null; // Return null for empty phone numbers to avoid database constraint issues
+        }
+        
+        String cleanPhone = phoneNumber.trim().replaceAll("[^+0-9]", ""); // Remove non-numeric chars except +
+        if (cleanPhone.matches("^\\+?[0-9]{10,15}$")) {
+            return cleanPhone;
+        } else {
+            return null; // Return null for invalid format to avoid database constraint issues
+        }
     }
 
     public boolean isOwnerOfEstablishment(String ownerEmail, Long establishmentId) {
@@ -729,6 +818,188 @@ public class EstablishmentService {
             System.err.println("Error getting establishment count by type: " + e.getMessage());
             // Return empty map on error
             return new HashMap<>();
+        }
+    }
+
+    public Map<String, Long> getEstablishmentCountByStatus() {
+        try {
+            List<Establishment> establishments = establishmentRepository.findAll();
+            Map<String, Long> statusCount = new HashMap<>();
+            
+            for (Establishment est : establishments) {
+                String status = est.getStatus() != null ? est.getStatus().name() : "UNKNOWN";
+                statusCount.put(status, statusCount.getOrDefault(status, 0L) + 1);
+            }
+            
+            return statusCount;
+        } catch (Exception e) {
+            System.err.println("Error getting establishment count by status: " + e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    public Map<String, Long> getEstablishmentCountByCity() {
+        try {
+            List<Establishment> establishments = establishmentRepository.findAll();
+            Map<String, Long> cityCount = new HashMap<>();
+            
+            for (Establishment est : establishments) {
+                String city = est.getCity() != null ? est.getCity() : "Unknown";
+                cityCount.put(city, cityCount.getOrDefault(city, 0L) + 1);
+            }
+            
+            return cityCount;
+        } catch (Exception e) {
+            System.err.println("Error getting establishment count by city: " + e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    public Establishment createEstablishmentByAdmin(String name, String type, String email, 
+            String address, String city, String state, String pincode, String phoneNumber,
+            String operatingHours, String upiId, String ownerPassword) {
+        try {
+            // Use default password if none provided
+            String finalPassword = (ownerPassword != null && !ownerPassword.trim().isEmpty()) 
+                ? ownerPassword.trim() 
+                : "OpenNova@123";
+            
+            System.out.println("🔐 EstablishmentService - Password analysis:");
+            System.out.println("   - Received password: " + (ownerPassword != null ? "YES" : "NO"));
+            System.out.println("   - Password not empty: " + (ownerPassword != null && !ownerPassword.trim().isEmpty()));
+            System.out.println("   - Using: " + (ownerPassword != null && !ownerPassword.trim().isEmpty() ? "Admin provided password" : "Default password"));
+            System.out.println("   - Final password length: " + finalPassword.length());
+            
+            // Check if user already exists
+            User owner = userRepository.findByEmail(email).orElse(null);
+            
+            if (owner == null) {
+                // Create new owner user
+                owner = new User();
+                owner.setName(name + " Owner");
+                owner.setEmail(email);
+                owner.setPassword(org.springframework.security.crypto.bcrypt.BCrypt.hashpw(
+                    finalPassword, 
+                    org.springframework.security.crypto.bcrypt.BCrypt.gensalt()
+                ));
+                owner.setIsActive(true);
+                
+                // Set role based on establishment type
+                try {
+                    EstablishmentType estType = EstablishmentType.valueOf(type.toUpperCase());
+                    switch (estType) {
+                        case HOTEL:
+                            owner.setRole(UserRole.HOTEL_OWNER);
+                            break;
+                        case HOSPITAL:
+                            owner.setRole(UserRole.HOSPITAL_OWNER);
+                            break;
+                        case SHOP:
+                            owner.setRole(UserRole.SHOP_OWNER);
+                            break;
+                        default:
+                            owner.setRole(UserRole.OWNER);
+                    }
+                    owner.setEstablishmentType(estType.name());
+                } catch (IllegalArgumentException e) {
+                    owner.setRole(UserRole.OWNER);
+                    owner.setEstablishmentType("SHOP");
+                }
+                
+                // Save new owner
+                owner = userRepository.save(owner);
+                System.out.println("✅ Created new owner user: " + email);
+            } else {
+                // Update existing user to owner role
+                try {
+                    EstablishmentType estType = EstablishmentType.valueOf(type.toUpperCase());
+                    switch (estType) {
+                        case HOTEL:
+                            owner.setRole(UserRole.HOTEL_OWNER);
+                            break;
+                        case HOSPITAL:
+                            owner.setRole(UserRole.HOSPITAL_OWNER);
+                            break;
+                        case SHOP:
+                            owner.setRole(UserRole.SHOP_OWNER);
+                            break;
+                        default:
+                            owner.setRole(UserRole.OWNER);
+                    }
+                    owner.setEstablishmentType(estType.name());
+                } catch (IllegalArgumentException e) {
+                    owner.setRole(UserRole.OWNER);
+                    owner.setEstablishmentType("SHOP");
+                }
+                
+                // Update password and activate user
+                owner.setPassword(org.springframework.security.crypto.bcrypt.BCrypt.hashpw(
+                    finalPassword, 
+                    org.springframework.security.crypto.bcrypt.BCrypt.gensalt()
+                ));
+                owner.setIsActive(true);
+                
+                // Save updated owner
+                owner = userRepository.save(owner);
+                System.out.println("✅ Updated existing user to owner: " + email);
+            }
+            
+            User savedOwner = owner;
+            
+            // Check if an establishment with this email already exists
+            Establishment existingEstablishment = establishmentRepository.findByEmail(email).orElse(null);
+            if (existingEstablishment != null) {
+                String errorMsg = String.format("An establishment with email '%s' already exists: %s (ID: %d)", 
+                    email, existingEstablishment.getName(), existingEstablishment.getId());
+                System.err.println("❌ " + errorMsg);
+                throw new RuntimeException(errorMsg);
+            }
+            
+            // Check if user already owns an establishment
+            List<Establishment> existingEstablishments = establishmentRepository.findByOwner(savedOwner);
+            if (!existingEstablishments.isEmpty()) {
+                String errorMsg = String.format("User '%s' already owns an establishment: %s (ID: %d)", 
+                    email, existingEstablishments.get(0).getName(), existingEstablishments.get(0).getId());
+                System.err.println("❌ " + errorMsg);
+                throw new RuntimeException(errorMsg);
+            }
+            
+            // Create establishment
+            Establishment establishment = new Establishment();
+            establishment.setName(name);
+            establishment.setType(EstablishmentType.valueOf(type.toUpperCase()));
+            establishment.setEmail(email);
+            establishment.setAddress(address);
+            establishment.setCity(city != null ? city : "");
+            establishment.setState(state != null ? state : "");
+            establishment.setPincode(pincode != null ? pincode : "");
+            
+            // Handle phone number - must be null if empty or invalid format
+            establishment.setPhoneNumber(validateAndCleanPhoneNumber(phoneNumber));
+            
+            establishment.setOperatingHours(operatingHours != null ? operatingHours : "9:00 AM - 6:00 PM");
+            establishment.setUpiId(upiId != null ? upiId : "");
+            establishment.setOwner(savedOwner);
+            establishment.setStatus(EstablishmentStatus.OPEN);
+            establishment.setIsActive(true);
+            
+            // Save establishment
+            Establishment savedEstablishment = establishmentRepository.save(establishment);
+            
+            // Send credentials email to owner
+            try {
+                emailService.sendOwnerCredentials(savedOwner, finalPassword);
+                System.out.println("✅ Owner credentials email sent to: " + email);
+            } catch (Exception e) {
+                System.err.println("❌ Failed to send owner credentials email: " + e.getMessage());
+                e.printStackTrace();
+            }
+            
+            return savedEstablishment;
+        } catch (Exception e) {
+            System.err.println("Error creating establishment by admin: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to create establishment: " + e.getMessage());
         }
     }
 }

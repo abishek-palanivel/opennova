@@ -28,8 +28,6 @@ const EstablishmentSettings = () => {
     longitude: ''
   });
 
-  const [qrCodeFile, setQrCodeFile] = useState(null);
-
 
 
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -79,25 +77,6 @@ const EstablishmentSettings = () => {
     }));
   };
 
-  const handleQRCodeChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB');
-        return;
-      }
-      
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
-        return;
-      }
-      
-      setQrCodeFile(file);
-    }
-  };
-
 
 
   const handleUpdateEstablishment = async (e) => {
@@ -113,11 +92,6 @@ const EstablishmentSettings = () => {
           formDataToSend.append(key, formData[key]);
         }
       });
-
-      // Add QR code file if selected
-      if (qrCodeFile) {
-        formDataToSend.append('upiQrCode', qrCodeFile);
-      }
 
 
 
@@ -345,83 +319,6 @@ const EstablishmentSettings = () => {
                 placeholder="e.g., merchant@paytm"
                 className="input-field"
               />
-            </div>
-          </div>
-
-          {/* UPI QR Code Upload Section */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">UPI Payment QR Code</h3>
-            <p className="text-blue-700 text-sm mb-4">
-              Upload your UPI QR code image to make payments easier for customers. This QR code will be shown during the booking payment process.
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Current QR Code Display */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current QR Code
-                </label>
-                <div className="w-48 h-48 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-white">
-                  {establishment?.upiQrCodePath ? (
-                    <img 
-                      src={getImageUrl(establishment.upiQrCodePath)} 
-                      alt="UPI QR Code" 
-                      className="w-full h-full object-contain rounded-lg"
-                    />
-                  ) : (
-                    <div className="text-center text-gray-500">
-                      <div className="text-4xl mb-2">📱</div>
-                      <p className="text-sm">No QR Code uploaded</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* QR Code Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload New QR Code
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleQRCodeChange}
-                  className="hidden"
-                  id="upi-qr-upload"
-                />
-                <label
-                  htmlFor="upi-qr-upload"
-                  className="cursor-pointer w-48 h-48 border-2 border-dashed border-blue-300 rounded-lg flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 transition-colors"
-                >
-                  <div className="text-center text-blue-600">
-                    <div className="text-4xl mb-2">📷</div>
-                    <p className="text-sm font-medium">Click to upload</p>
-                    <p className="text-xs">PNG, JPG up to 5MB</p>
-                  </div>
-                </label>
-                
-                {qrCodeFile && (
-                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-green-800 text-sm">
-                      ✅ New QR code selected: {qrCodeFile.name}
-                    </p>
-                    <p className="text-green-600 text-xs mt-1">
-                      Save the form to upload this QR code
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h4 className="font-medium text-yellow-900 mb-2">📋 QR Code Guidelines</h4>
-              <ul className="text-yellow-800 text-sm space-y-1">
-                <li>• Use a clear, high-quality image of your UPI QR code</li>
-                <li>• Ensure the QR code is scannable and not blurry</li>
-                <li>• Include your business name or UPI ID in the QR code</li>
-                <li>• Test the QR code before uploading to ensure it works</li>
-                <li>• Recommended size: 500x500 pixels or larger</li>
-              </ul>
             </div>
           </div>
 

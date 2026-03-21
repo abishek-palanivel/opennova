@@ -108,55 +108,14 @@ public class AuthService {
         emailService.sendEmail(user.getEmail(), subject, body);
     }
 
+    // Account locking feature has been removed for better user experience
     public void handleFailedLogin(String email) {
-        User user = userService.findByEmailSafe(email);
-        if (user == null) {
-            return; // Don't reveal if user exists or not
-        }
-
-        int currentAttempts = user.getFailedLoginAttempts() != null ? user.getFailedLoginAttempts() : 0;
-        currentAttempts++;
-        user.setFailedLoginAttempts(currentAttempts);
-
-        if (currentAttempts >= 3) {
-            // Lock account for 24 hours
-            user.setAccountLockedUntil(LocalDateTime.now().plusHours(24));
-            System.out.println("Account locked for 24 hours due to 3 failed login attempts: " + email);
-        }
-
-        user.setUpdatedAt(LocalDateTime.now());
-        userService.save(user);
+        // No longer tracking failed login attempts or locking accounts
+        System.out.println("Failed login attempt for: " + email + " (account locking disabled)");
     }
 
     public void handleSuccessfulLogin(String email) {
-        User user = userService.findByEmailSafe(email);
-        if (user == null) {
-            return;
-        }
-
-        // Reset failed login attempts on successful login
-        user.setFailedLoginAttempts(0);
-        user.setAccountLockedUntil(null);
-        user.setUpdatedAt(LocalDateTime.now());
-        userService.save(user);
-    }
-
-    public boolean isAccountLocked(String email) {
-        User user = userService.findByEmailSafe(email);
-        if (user == null) {
-            return false;
-        }
-
-        return user.getAccountLockedUntil() != null && 
-               user.getAccountLockedUntil().isAfter(LocalDateTime.now());
-    }
-
-    public LocalDateTime getAccountLockExpiry(String email) {
-        User user = userService.findByEmailSafe(email);
-        if (user == null) {
-            return null;
-        }
-
-        return user.getAccountLockedUntil();
+        // No longer need to reset failed login attempts since locking is disabled
+        System.out.println("Successful login for: " + email);
     }
 }

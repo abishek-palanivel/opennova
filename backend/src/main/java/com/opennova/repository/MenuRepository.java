@@ -11,9 +11,11 @@ import java.util.List;
 @Repository
 public interface MenuRepository extends JpaRepository<Menu, Long> {
     
-    List<Menu> findByEstablishmentId(Long establishmentId);
+    @Query("SELECT m FROM Menu m WHERE m.establishment.id = :establishmentId")
+    List<Menu> findByEstablishmentId(@Param("establishmentId") Long establishmentId);
     
-    List<Menu> findByEstablishmentIdOrderByCreatedAtDesc(Long establishmentId);
+    @Query("SELECT m FROM Menu m WHERE m.establishment.id = :establishmentId ORDER BY m.createdAt DESC")
+    List<Menu> findByEstablishmentIdOrderByCreatedAtDesc(@Param("establishmentId") Long establishmentId);
     
     @Query("SELECT m FROM Menu m WHERE m.establishment.id = :establishmentId AND m.isActive = true")
     List<Menu> findActiveMenusByEstablishmentId(@Param("establishmentId") Long establishmentId);
@@ -21,7 +23,9 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
     @Query("SELECT m FROM Menu m WHERE m.establishment.id = :establishmentId AND m.isActive = true ORDER BY m.createdAt DESC")
     List<Menu> findActiveMenusByEstablishmentIdOrderByCreatedAtDesc(@Param("establishmentId") Long establishmentId);
     
-    long countByEstablishmentId(Long establishmentId);
+    @Query("SELECT COUNT(m) FROM Menu m WHERE m.establishment.id = :establishmentId")
+    long countByEstablishmentId(@Param("establishmentId") Long establishmentId);
     
-    boolean existsByEstablishmentIdAndName(Long establishmentId, String name);
+    @Query("SELECT CASE WHEN COUNT(m) > 0 THEN true ELSE false END FROM Menu m WHERE m.establishment.id = :establishmentId AND m.name = :name")
+    boolean existsByEstablishmentIdAndName(@Param("establishmentId") Long establishmentId, @Param("name") String name);
 }

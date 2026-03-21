@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
-import QRScanner from './QRScanner';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -13,7 +12,6 @@ const Dashboard = () => {
   });
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showQRScanner, setShowQRScanner] = useState(false);
 
   useEffect(() => {
     fetchOwnerStats();
@@ -49,30 +47,59 @@ const Dashboard = () => {
 
   const fetchOwnerStats = async () => {
     try {
-      // Mock data for now - replace with actual API calls
-      setStats({
-        totalBookings: 156,
-        todayBookings: 8,
-        totalRevenue: 45000,
-        averageRating: 4.5
-      });
-      
-      setRecentBookings([
-        {
-          id: 1,
-          customerName: 'John Doe',
-          date: '2024-01-15',
-          status: 'CONFIRMED',
-          amount: 1200
-        },
-        {
-          id: 2,
-          customerName: 'Jane Smith',
-          date: '2024-01-15',
-          status: 'PENDING',
-          amount: 800
+      // Fetch real stats from the API
+      const response = await fetch('/api/owner/dashboard-stats', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         }
-      ]);
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setStats({
+          totalBookings: data.totalBookings || 0,
+          todayBookings: data.todayBookings || 0,
+          totalRevenue: data.totalRevenue || 0,
+          averageRating: data.averageRating || 0,
+          paidOrders: data.paidOrders || 0,
+          pendingVisits: data.pendingVisits || 0
+        });
+        console.log('📊 Dashboard stats loaded:', data);
+      } else {
+        console.error('Failed to fetch dashboard stats:', response.status);
+        // Keep default values on error
+      }
+
+      // Fetch recent bookings
+      try {
+        const bookingsResponse = await fetch('/api/owner/orders', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (bookingsResponse.ok) {
+          const bookingsData = await bookingsResponse.json();
+          if (bookingsData.orders && Array.isArray(bookingsData.orders)) {
+            // Take only the first 5 recent bookings for dashboard
+            const recentBookingsData = bookingsData.orders.slice(0, 5).map(booking => ({
+              id: booking.id,
+              customerName: booking.customerName || 'Unknown Customer',
+              date: booking.visitingDate || booking.createdAt,
+              status: booking.status,
+              amount: booking.amount || 0
+            }));
+            setRecentBookings(recentBookingsData);
+          }
+        }
+      } catch (bookingsError) {
+        console.error('Failed to fetch recent bookings:', bookingsError);
+      }
+
     } catch (error) {
       console.error('Failed to fetch owner stats:', error);
     } finally {
@@ -96,25 +123,20 @@ const Dashboard = () => {
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-4">
         <button
-          onClick={() => setShowQRScanner(!showQRScanner)}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-        >
-          <span className="mr-2">📱</span>
-          {showQRScanner ? 'Hide QR Scanner' : 'QR Code Scanner'}
-        </button>
-        <button
           onClick={handleExportBookings}
           className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center"
         >
           <span className="mr-2">📊</span>
           Export My Bookings
         </button>
+        <button
+          onClick={() => window.location.href = '/owner/bookings'}
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+        >
+          <span className="mr-2">📋</span>
+          Manage Bookings
+        </button>
       </div>
-
-      {/* QR Scanner */}
-      {showQRScanner && (
-        <QRScanner />
-      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -125,7 +147,7 @@ const Dashboard = () => {
               <p className="text-3xl font-bold text-gray-900">{stats.totalBookings}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
-              <span className="text-2xl">📅</span>
+              <span className="text-2xl">�</span>
             </div>
           </div>
         </div>
@@ -133,11 +155,23 @@ const Dashboard = () => {
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Today's Bookings</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.todayBookings}</p>
+              <p className="text-sm font-medium text-gray-600">Paid Orders</p>
+              <p className="text-3xl font-bold text-gray-900">{stats.paidOrders || 0}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
-              <span className="text-2xl">📊</span>
+              <span className="text-2xl">�</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Pending Visits</p>
+              <p className="text-3xl font-bold text-gray-900">{stats.pendingVisits || 0}</p>
+            </div>
+            <div className="p-3 bg-orange-100 rounded-full">
+              <span className="text-2xl">⏳</span>
             </div>
           </div>
         </div>
@@ -149,19 +183,7 @@ const Dashboard = () => {
               <p className="text-3xl font-bold text-gray-900">₹{stats.totalRevenue.toLocaleString()}</p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
-              <span className="text-2xl">💰</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Average Rating</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.averageRating}</p>
-            </div>
-            <div className="p-3 bg-yellow-100 rounded-full">
-              <span className="text-2xl">⭐</span>
+              <span className="text-2xl">💎</span>
             </div>
           </div>
         </div>

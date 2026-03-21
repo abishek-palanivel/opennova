@@ -61,6 +61,9 @@ public class Collection {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "is_available")
+    private Boolean isAvailable = true;
+
     // Constructors
     public Collection() {}
 
@@ -116,6 +119,9 @@ public class Collection {
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+
+    public Boolean getIsAvailable() { return isAvailable; }
+    public void setIsAvailable(Boolean isAvailable) { this.isAvailable = isAvailable; }
 
     @PreUpdate
     public void preUpdate() {

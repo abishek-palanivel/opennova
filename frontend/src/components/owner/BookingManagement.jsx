@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import * as XLSX from 'xlsx';
-import QRScanner from './QRScanner';
 import { formatTimeTo12Hour, formatDateForDisplay } from '../../utils/timeUtils';
 import { showNotification } from '../common/NotificationSystem';
 
@@ -11,7 +10,6 @@ const BookingManagement = () => {
   const [filter, setFilter] = useState('all');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
-  const [showQRScanner, setShowQRScanner] = useState(false);
 
 
 
@@ -135,9 +133,14 @@ const BookingManagement = () => {
 
   const exportToExcel = async () => {
     try {
-      // Call backend API for Excel export
-      const response = await api.get('/api/owner/export-bookings', {
-        responseType: 'blob'
+      setLoading(true);
+      
+      // Call backend API for Excel export with proper response handling
+      const response = await api.get('/api/owner/export/bookings', {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }
       });
       
       // Create blob and download
@@ -148,7 +151,7 @@ const BookingManagement = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `bookings_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.download = `owner-bookings-${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -215,6 +218,8 @@ const BookingManagement = () => {
       
       XLSX.writeFile(wb, `bookings_detailed_${new Date().toISOString().split('T')[0]}.xlsx`);
       showNotification('success', 'Booking report exported successfully!', 'Export Complete');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -243,13 +248,6 @@ const BookingManagement = () => {
           Booking Management
         </h1>
         <div className="flex space-x-3">
-          <button
-            onClick={() => setShowQRScanner(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
-          >
-            <span className="mr-2">📱</span>
-            Scan QR Code
-          </button>
           <button
             onClick={exportToExcel}
             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center"
@@ -717,16 +715,6 @@ const BookingManagement = () => {
         </div>
       )}
 
-      {/* QR Scanner Modal */}
-      {showQRScanner && (
-        <QRScanner
-          onScanSuccess={(orderDetails) => {
-            console.log('Scanned order:', orderDetails);
-            setShowQRScanner(false);
-          }}
-          onClose={() => setShowQRScanner(false)}
-        />
-      )}
     </div>
   );
 };

@@ -47,6 +47,9 @@ public class Doctor {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "is_available")
+    private Boolean isAvailable = true;
+
     // Constructors
     public Doctor() {}
 
@@ -87,6 +90,9 @@ public class Doctor {
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+
+    public Boolean getIsAvailable() { return isAvailable; }
+    public void setIsAvailable(Boolean isAvailable) { this.isAvailable = isAvailable; }
 
     @PreUpdate
     public void preUpdate() {

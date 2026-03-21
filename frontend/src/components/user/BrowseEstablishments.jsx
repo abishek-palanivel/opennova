@@ -7,6 +7,7 @@ import EstablishmentStatus, { BookingAvailability } from '../common/Establishmen
 import { useMultipleEstablishmentStatuses } from '../../hooks/useRealTimeStatus';
 import { getTodayOperatingHours } from '../../utils/timeUtils';
 import { getImageUrl } from '../../utils/imageUtils';
+import ImageWithFallback from '../common/ImageWithFallback';
 
 const BrowseEstablishments = () => {
   const [establishments, setEstablishments] = useState([]);
@@ -302,10 +303,12 @@ const BrowseEstablishments = () => {
                   <div className="relative w-12 h-12 rounded-lg overflow-hidden shadow-md flex-shrink-0">
                     {establishment.profileImagePath ? (
                       <>
-                        <img
+                        <ImageWithFallback
                           src={getImageUrl(establishment.profileImagePath)}
                           alt={establishment.name}
                           className="w-full h-full object-cover"
+                          type={establishment.type}
+                        />
                           onError={(e) => {
                             // Fallback to default icon if image fails to load
                             console.error('Failed to load establishment image:', e.target.src);

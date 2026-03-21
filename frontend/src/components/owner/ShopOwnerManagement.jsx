@@ -6,6 +6,7 @@ import OpenNovaLogo from '../common/OpenNovaLogo';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { getImageUrl } from '../../utils/imageUtils';
 import ImageWithFallback from '../common/ImageWithFallback';
+import PaymentVerificationManagement from './PaymentVerificationManagement';
 
 const ShopOwnerManagement = () => {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ const ShopOwnerManagement = () => {
     if (path.includes('/bookings')) return 'bookings';
     if (path.includes('/items')) return 'collections';
     if (path.includes('/reviews')) return 'reviews';
+    if (path.includes('/payments')) return 'payments';
     if (path.includes('/settings')) return 'hours';
     return 'profile';
   };
@@ -132,11 +134,15 @@ const ShopOwnerManagement = () => {
 
       let response;
       if (editingCollection) {
-        response = await api.put(`/api/owner/collections/${editingCollection.id}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        // Use the with-image endpoint for updates when image is provided
+        const endpoint = collectionImageFile ? `/api/owner/collections/${editingCollection.id}/with-image` : `/api/owner/collections/${editingCollection.id}`;
+        const config = collectionImageFile ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+        const data = collectionImageFile ? formData : collectionFormData;
+        
+        response = await api.put(endpoint, data, config);
       } else {
-        response = await api.post('/api/owner/collections', formData, {
+        // Use the with-image endpoint for creation
+        response = await api.post('/api/owner/collections/with-image', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       }
@@ -191,7 +197,17 @@ const ShopOwnerManagement = () => {
   }, [editingCollection]);  const
  fetchEstablishmentData = async () => {
     if (!user || !['OWNER', 'HOTEL_OWNER', 'HOSPITAL_OWNER', 'SHOP_OWNER'].includes(user.role)) {
-      setEstablishment({});
+      setEstablishment({
+        name: '',
+        address: '',
+        contactNumber: '',
+        phoneNumber: '',
+        upiId: '',
+        operatingHours: '',
+        status: 'OPEN',
+        latitude: 0,
+        longitude: 0
+      });
       return;
     }
 
@@ -200,10 +216,32 @@ const ShopOwnerManagement = () => {
       const timestamp = new Date().getTime();
       const response = await api.get(`/api/owner/establishment?_t=${timestamp}`);
       console.log('🔄 ShopOwner - Fresh establishment data received:', response.data);
-      setEstablishment(response.data);
+      // Ensure all fields have default values to prevent controlled/uncontrolled input warnings
+      setEstablishment({
+        name: response.data.name || '',
+        address: response.data.address || '',
+        contactNumber: response.data.phoneNumber || response.data.contactNumber || '',
+        phoneNumber: response.data.phoneNumber || response.data.contactNumber || '',
+        upiId: response.data.upiId || '',
+        operatingHours: response.data.operatingHours || '',
+        status: response.data.status || 'OPEN',
+        latitude: response.data.latitude || 0,
+        longitude: response.data.longitude || 0,
+        ...response.data
+      });
     } catch (error) {
       console.debug('Establishment data not available:', error.response?.status);
-      setEstablishment({});
+      setEstablishment({
+        name: '',
+        address: '',
+        contactNumber: '',
+        phoneNumber: '',
+        upiId: '',
+        operatingHours: '',
+        status: 'OPEN',
+        latitude: 0,
+        longitude: 0
+      });
     }
   };
 
@@ -340,6 +378,7 @@ const ShopOwnerManagement = () => {
           <TabButton id="profile" label="Profile" icon="🏪" />
           <TabButton id="collections" label="Items" icon="📦" />
           <TabButton id="bookings" label="Bookings" icon="📅" />
+          <TabButton id="payments" label="Payment Verifications" icon="💳" />
           <TabButton id="reviews" label="Reviews" icon="⭐" />
           <TabButton id="hours" label="Operating Hours" icon="🕒" />
         </div>
@@ -778,6 +817,11 @@ const ShopOwnerManagement = () => {
               )}
             </div>
           </div>
+        )}
+
+        {/* Payment Verifications Tab */}
+        {activeTab === 'payments' && (
+          <PaymentVerificationManagement />
         )}
 
         {activeTab === 'reviews' && (

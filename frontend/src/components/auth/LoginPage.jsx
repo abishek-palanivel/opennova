@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import OpenNovaLogo from '../common/OpenNovaLogo';
+import GoogleOAuthButton from './GoogleOAuthButton';
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,9 +16,11 @@ const LoginPage = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [isAccountLocked, setIsAccountLocked] = useState(false);
+  const [showSuspendedModal, setShowSuspendedModal] = useState(false);
+  const [suspendedAccountInfo, setSuspendedAccountInfo] = useState(null);
+  // Account locking UI removed for better user experience
 
-  const { login, register, forgotPassword, checkAccountStatus, user } = useAuth();
+  const { login, register, forgotPassword, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -122,9 +125,17 @@ const LoginPage = () => {
         // Navigate to appropriate portal based on user role
         navigate(result.redirectPath || '/user/dashboard');
       } else {
-        setMessage(result.message);
-        if (result.isLocked) {
-          setIsAccountLocked(true);
+        // Handle suspended/deactivated accounts with special UI
+        if (result.isSuspended) {
+          // Show suspended account modal
+          showSuspendedAccountModal(result);
+        } else {
+          setMessage(result.message);
+          // Check if user needs to signup
+          if (result.needsSignup) {
+            // Show signup suggestion
+            setMessage(result.message + " Click 'Sign Up' below or use Google Sign In.");
+          }
         }
       }
     } else {
@@ -145,6 +156,21 @@ const LoginPage = () => {
     }
     
     setLoading(false);
+  };
+
+  const showSuspendedAccountModal = (result) => {
+    setSuspendedAccountInfo({
+      message: result.message,
+      supportEmail: result.supportEmail || 'support@opennova.com',
+      accountStatus: result.accountStatus
+    });
+    setShowSuspendedModal(true);
+  };
+
+  const closeSuspendedModal = () => {
+    setShowSuspendedModal(false);
+    setSuspendedAccountInfo(null);
+    setFormData({ ...formData, password: '' }); // Clear password for security
   };
 
   return (
@@ -173,16 +199,9 @@ const LoginPage = () => {
               <div className={`p-3 rounded-lg text-sm ${
                 message.includes('successful') || message.includes('sent') 
                   ? 'bg-green-50 text-green-700 border border-green-200' 
-                  : isAccountLocked
-                  ? 'bg-orange-50 text-orange-700 border border-orange-200'
                   : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
                 {message}
-                {isAccountLocked && (
-                  <div className="mt-2 text-xs">
-                    <strong>Security Notice:</strong> Your account has been temporarily locked for 24 hours due to multiple failed login attempts. This is to protect your account from unauthorized access.
-                  </div>
-                )}
               </div>
             )}
 
@@ -297,6 +316,28 @@ const LoginPage = () => {
                   {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
                 </button>
 
+                {/* Google OAuth Button */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">Or</span>
+                  </div>
+                </div>
+
+                <GoogleOAuthButton
+                  buttonText={isLogin ? "Sign in with Google" : "Sign up with Google"}
+                  onSuccess={(userData) => {
+                    console.log('✅ Google OAuth success:', userData);
+                    // Navigation will be handled by the GoogleOAuthButton itself
+                  }}
+                  onError={(error) => {
+                    console.error('❌ Google OAuth error:', error);
+                    setMessage('Google authentication failed: ' + error);
+                  }}
+                />
+
                 {isLogin && (
                   <button
                     type="button"
@@ -326,6 +367,57 @@ const LoginPage = () => {
           </form>
         </div>
       </div>
+
+      {/* Suspended Account Modal */}
+      {showSuspendedModal && suspendedAccountInfo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="text-center">
+              {/* Warning Icon */}
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              
+              {/* Title */}
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Account Suspended
+              </h3>
+              
+              {/* Message */}
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                {suspendedAccountInfo.message}
+              </p>
+              
+              {/* Support Information */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-semibold text-gray-800 mb-2">Need Help?</h4>
+                <p className="text-sm text-gray-600 mb-2">
+                  Contact our support team for assistance:
+                </p>
+                <a 
+                  href={`mailto:${suspendedAccountInfo.supportEmail}?subject=Account Suspension - ${formData.email}`}
+                  className="inline-flex items-center text-blue-600 hover:text-blue-700 font-medium text-sm"
+                >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  {suspendedAccountInfo.supportEmail}
+                </a>
+              </div>
+              
+              {/* Close Button */}
+              <button
+                onClick={closeSuspendedModal}
+                className="w-full bg-gray-600 text-white py-3 px-4 rounded-lg hover:bg-gray-700 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

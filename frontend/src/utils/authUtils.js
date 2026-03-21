@@ -93,8 +93,3 @@ export const isTokenValid = async () => {
   }
 };
 
-export const hasValidAuthForChat = (user) => {
-  return user && 
-         localStorage.getItem('token') && 
-         ['ADMIN', 'OWNER', 'HOTEL_OWNER', 'HOSPITAL_OWNER', 'SHOP_OWNER', 'USER'].includes(user.role);
-};

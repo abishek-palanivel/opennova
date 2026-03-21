@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalBookings: 0,
     activeBookings: 0,
@@ -75,6 +74,8 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
+
+
 
   if (loading) {
     return <LoadingSpinner />;
@@ -302,34 +303,31 @@ const Dashboard = () => {
           <div className="text-4xl mb-4">🔍</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Browse Establishments</h3>
           <p className="text-gray-600 mb-4">Discover hotels, hospitals, and shops near you</p>
-          <button 
-            onClick={() => navigate('/user/browse')}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          <Link 
+            to="/user/browse"
+            className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Start Browsing
-          </button>
+          </Link>
         </div>
 
         <div className="bg-white rounded-xl p-6 shadow-lg text-center">
           <div className="text-4xl mb-4">📝</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Request New Establishment</h3>
           <p className="text-gray-600 mb-4">Can't find what you're looking for? Request it!</p>
-          <button 
-            onClick={() => navigate('/user/request')}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+          <Link 
+            to="/user/request"
+            className="inline-block bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
           >
             Make Request
-          </button>
+          </Link>
         </div>
 
         <div className="bg-white rounded-xl p-6 shadow-lg text-center">
           <div className="text-4xl mb-4">⭐</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Write Reviews</h3>
           <p className="text-gray-600 mb-4">Share your experiences with others</p>
-          <button 
-            onClick={() => navigate('/user/reviews')}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-          >
+          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
             View Reviews
           </button>
         </div>

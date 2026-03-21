@@ -6,6 +6,7 @@ import OpenNovaLogo from '../common/OpenNovaLogo';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { getImageUrl } from '../../utils/imageUtils';
 import ImageWithFallback from '../common/ImageWithFallback';
+import PaymentVerificationManagement from './PaymentVerificationManagement';
 
 const HospitalOwnerManagement = () => {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ const HospitalOwnerManagement = () => {
     if (path.includes('/bookings')) return 'bookings';
     if (path.includes('/items')) return 'doctors';
     if (path.includes('/reviews')) return 'reviews';
+    if (path.includes('/payments')) return 'payments';
     if (path.includes('/settings')) return 'hours';
     return 'profile';
   };
@@ -61,7 +63,17 @@ const HospitalOwnerManagement = () => {
   const fetchEstablishmentData = async () => {
     // Only fetch if user is authenticated as owner
     if (!user || !['OWNER', 'HOTEL_OWNER', 'HOSPITAL_OWNER', 'SHOP_OWNER'].includes(user.role)) {
-      setEstablishment({});
+      setEstablishment({
+        name: '',
+        address: '',
+        contactNumber: '',
+        phoneNumber: '',
+        upiId: '',
+        operatingHours: '',
+        status: 'OPEN',
+        latitude: 0,
+        longitude: 0
+      });
       return;
     }
 
@@ -71,10 +83,32 @@ const HospitalOwnerManagement = () => {
       const response = await api.get(`/api/owner/establishment?_t=${timestamp}`);
       console.log('🔄 HospitalOwner - Fresh establishment data received:', response.data);
       console.log('🏥 UPI QR Code Path:', response.data.upiQrCodePath);
-      setEstablishment(response.data);
+      // Ensure all fields have default values to prevent controlled/uncontrolled input warnings
+      setEstablishment({
+        name: response.data.name || '',
+        address: response.data.address || '',
+        contactNumber: response.data.phoneNumber || response.data.contactNumber || '',
+        phoneNumber: response.data.phoneNumber || response.data.contactNumber || '',
+        upiId: response.data.upiId || '',
+        operatingHours: response.data.operatingHours || '',
+        status: response.data.status || 'OPEN',
+        latitude: response.data.latitude || 0,
+        longitude: response.data.longitude || 0,
+        ...response.data
+      });
     } catch (error) {
       console.debug('Establishment data not available:', error.response?.status);
-      setEstablishment({});
+      setEstablishment({
+        name: '',
+        address: '',
+        contactNumber: '',
+        phoneNumber: '',
+        upiId: '',
+        operatingHours: '',
+        status: 'OPEN',
+        latitude: 0,
+        longitude: 0
+      });
     }
   };
 
@@ -99,7 +133,7 @@ const HospitalOwnerManagement = () => {
             imagePath: doctor.imagePath,
             imageUrl: doctor.imageUrl,
             hasImage: !!(doctor.imagePath || doctor.imageUrl),
-            fullImageUrl: doctor.imagePath ? `http://localhost:9000/api/files/view/${doctor.imagePath}` : 'No image'
+            fullImageUrl: doctor.imagePath ? getImageUrl(doctor.imagePath) : 'No image'
           });
         });
       }
@@ -479,6 +513,7 @@ const HospitalOwnerManagement = () => {
         <TabButton id="profile" label="Profile Settings" icon="⚙️" />
         <TabButton id="doctors" label="Manage Doctors" icon="👨‍⚕️" />
         <TabButton id="bookings" label="Appointments" icon="📅" />
+        <TabButton id="payments" label="Payment Verifications" icon="💳" />
         <TabButton id="reviews" label="Reviews" icon="⭐" />
         <TabButton id="hours" label="Settings" icon="⚙️" />
       </div>
@@ -918,6 +953,11 @@ const HospitalOwnerManagement = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Payment Verifications Tab */}
+      {activeTab === 'payments' && (
+        <PaymentVerificationManagement />
       )}
 
       {activeTab === 'reviews' && (

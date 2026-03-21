@@ -23,6 +23,7 @@ public class User implements UserDetails {
 
     @NotBlank
     @Size(max = 100)
+    @Column(name = "full_name")
     private String name;
 
     @NotBlank
@@ -31,7 +32,6 @@ public class User implements UserDetails {
     @Column(unique = true)
     private String email;
 
-    @NotBlank
     @Size(max = 255)
     private String password;
 
@@ -56,11 +56,18 @@ public class User implements UserDetails {
     @Column(name = "reset_token_expiry")
     private LocalDateTime resetTokenExpiry;
 
-    @Column(name = "failed_login_attempts")
-    private Integer failedLoginAttempts = 0;
+    // Google OAuth fields
+    @Column(name = "google_id")
+    private String googleId;
 
-    @Column(name = "account_locked_until")
-    private LocalDateTime accountLockedUntil;
+    @Column(name = "profile_picture_url")
+    private String profilePictureUrl;
+
+    @Column(name = "auth_provider")
+    @Enumerated(EnumType.STRING)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    // Account locking fields removed for better user experience
 
     // Constructors
     public User() {}
@@ -90,7 +97,7 @@ public class User implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return accountLockedUntil == null || accountLockedUntil.isBefore(LocalDateTime.now());
+        return true; // Account locking has been disabled
     }
 
     @Override
@@ -137,14 +144,41 @@ public class User implements UserDetails {
     public String getEstablishmentType() { return establishmentType; }
     public void setEstablishmentType(String establishmentType) { this.establishmentType = establishmentType; }
 
-    public Integer getFailedLoginAttempts() { return failedLoginAttempts; }
-    public void setFailedLoginAttempts(Integer failedLoginAttempts) { this.failedLoginAttempts = failedLoginAttempts; }
-
-    public LocalDateTime getAccountLockedUntil() { return accountLockedUntil; }
-    public void setAccountLockedUntil(LocalDateTime accountLockedUntil) { this.accountLockedUntil = accountLockedUntil; }
+    // Account locking getters/setters removed for better user experience
 
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    // Google OAuth getters and setters
+    public String getGoogleId() {
+        return googleId;
+    }
+
+    public void setGoogleId(String googleId) {
+        this.googleId = googleId;
+    }
+
+    public String getProfilePictureUrl() {
+        return profilePictureUrl;
+    }
+
+    public void setProfilePictureUrl(String profilePictureUrl) {
+        this.profilePictureUrl = profilePictureUrl;
+    }
+
+    public AuthProvider getAuthProvider() {
+        return authProvider;
+    }
+
+    public void setAuthProvider(AuthProvider authProvider) {
+        this.authProvider = authProvider;
+    }
+
+    // Auth Provider Enum
+    public enum AuthProvider {
+        LOCAL,
+        GOOGLE
     }
 }

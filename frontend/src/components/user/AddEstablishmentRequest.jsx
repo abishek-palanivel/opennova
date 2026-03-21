@@ -7,6 +7,11 @@ const AddEstablishmentRequest = () => {
     type: '',
     email: '',
     address: '',
+    city: '',
+    state: '',
+    pincode: '',
+    phoneNumber: '',
+    password: '',
     notes: ''
   });
   const [loading, setLoading] = useState(false);
@@ -50,6 +55,32 @@ const AddEstablishmentRequest = () => {
       newErrors.address = 'Address is required';
     }
 
+    if (!formData.city.trim()) {
+      newErrors.city = 'City is required';
+    }
+
+    if (!formData.state.trim()) {
+      newErrors.state = 'State is required';
+    }
+
+    if (!formData.pincode.trim()) {
+      newErrors.pincode = 'Pincode is required';
+    } else if (!/^\d{6}$/.test(formData.pincode)) {
+      newErrors.pincode = 'Pincode must be 6 digits';
+    }
+
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = 'Phone number must be 10 digits';
+    }
+
+    if (!formData.password.trim()) {
+      newErrors.password = 'Password is required for your establishment account';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -63,8 +94,22 @@ const AddEstablishmentRequest = () => {
     setMessage('');
 
     try {
-      console.log('Submitting establishment request:', formData);
-      const response = await api.post(`/api/user/establishment-requests`, formData);
+      // Ensure all required fields are properly trimmed and not empty
+      const requestData = {
+        name: formData.name.trim(),
+        type: formData.type.trim(),
+        email: formData.email.trim(),
+        address: formData.address.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        pincode: formData.pincode.trim(),
+        phoneNumber: formData.phoneNumber.trim(),
+        password: formData.password.trim(),
+        notes: formData.notes.trim()
+      };
+      
+      console.log('Submitting establishment request:', requestData);
+      const response = await api.post(`/api/user/establishment-requests`, requestData);
       console.log('Request submitted successfully:', response.data);
       
       setMessage('Request submitted successfully! Admin will review and process your request.');
@@ -73,6 +118,11 @@ const AddEstablishmentRequest = () => {
         type: '',
         email: '',
         address: '',
+        city: '',
+        state: '',
+        pincode: '',
+        phoneNumber: '',
+        password: '',
         notes: ''
       });
     } catch (error) {
@@ -83,7 +133,16 @@ const AddEstablishmentRequest = () => {
         data: error.response?.data
       });
       
-      const errorMessage = error.response?.data?.message || 'Failed to submit request. Please try again.';
+      let errorMessage = 'Failed to submit request. Please try again.';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Please log in to submit establishment requests.';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.message || 'Please check all required fields and try again.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
       setMessage(errorMessage);
     } finally {
       setLoading(false);
@@ -215,9 +274,9 @@ const AddEstablishmentRequest = () => {
                 name="address"
                 value={formData.address}
                 onChange={handleInputChange}
-                rows={3}
+                rows={2}
                 className="w-full px-6 py-4 border-2 border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/80 backdrop-blur-sm focus:bg-white hover:border-slate-300 placeholder:text-slate-400 text-lg group-hover:border-slate-300 resize-none"
-                placeholder="Enter complete address with city, state, and postal code"
+                placeholder="Street address, building name, etc."
               />
               {errors.address && (
                 <p className="text-red-500 text-sm mt-2 flex items-center">
@@ -225,6 +284,121 @@ const AddEstablishmentRequest = () => {
                   {errors.address}
                 </p>
               )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="group">
+                <label className="block text-lg font-bold text-slate-700 mb-3 flex items-center">
+                  <span className="mr-2">🏙️</span>
+                  City *
+                </label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  className="w-full px-6 py-4 border-2 border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/80 backdrop-blur-sm focus:bg-white hover:border-slate-300 placeholder:text-slate-400 text-lg group-hover:border-slate-300"
+                  placeholder="Enter city"
+                />
+                {errors.city && (
+                  <p className="text-red-500 text-sm mt-2 flex items-center">
+                    <span className="mr-1">⚠️</span>
+                    {errors.city}
+                  </p>
+                )}
+              </div>
+
+              <div className="group">
+                <label className="block text-lg font-bold text-slate-700 mb-3 flex items-center">
+                  <span className="mr-2">🗺️</span>
+                  State *
+                </label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleInputChange}
+                  className="w-full px-6 py-4 border-2 border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/80 backdrop-blur-sm focus:bg-white hover:border-slate-300 placeholder:text-slate-400 text-lg group-hover:border-slate-300"
+                  placeholder="Enter state"
+                />
+                {errors.state && (
+                  <p className="text-red-500 text-sm mt-2 flex items-center">
+                    <span className="mr-1">⚠️</span>
+                    {errors.state}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="group">
+                <label className="block text-lg font-bold text-slate-700 mb-3 flex items-center">
+                  <span className="mr-2">📮</span>
+                  Pincode *
+                </label>
+                <input
+                  type="text"
+                  name="pincode"
+                  value={formData.pincode}
+                  onChange={handleInputChange}
+                  maxLength={6}
+                  className="w-full px-6 py-4 border-2 border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/80 backdrop-blur-sm focus:bg-white hover:border-slate-300 placeholder:text-slate-400 text-lg group-hover:border-slate-300"
+                  placeholder="6-digit pincode"
+                />
+                {errors.pincode && (
+                  <p className="text-red-500 text-sm mt-2 flex items-center">
+                    <span className="mr-1">⚠️</span>
+                    {errors.pincode}
+                  </p>
+                )}
+              </div>
+
+              <div className="group">
+                <label className="block text-lg font-bold text-slate-700 mb-3 flex items-center">
+                  <span className="mr-2">📞</span>
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleInputChange}
+                  maxLength={10}
+                  className="w-full px-6 py-4 border-2 border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/80 backdrop-blur-sm focus:bg-white hover:border-slate-300 placeholder:text-slate-400 text-lg group-hover:border-slate-300"
+                  placeholder="10-digit phone number"
+                />
+                {errors.phoneNumber && (
+                  <p className="text-red-500 text-sm mt-2 flex items-center">
+                    <span className="mr-1">⚠️</span>
+                    {errors.phoneNumber}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="group">
+              <label className="block text-lg font-bold text-slate-700 mb-3 flex items-center">
+                <span className="mr-2">🔐</span>
+                Owner Account Password *
+              </label>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                className="w-full px-6 py-4 border-2 border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/80 backdrop-blur-sm focus:bg-white hover:border-slate-300 placeholder:text-slate-400 text-lg group-hover:border-slate-300"
+                placeholder="Create a password for your establishment account (min 6 characters)"
+              />
+              {errors.password && (
+                <p className="text-red-500 text-sm mt-2 flex items-center">
+                  <span className="mr-1">⚠️</span>
+                  {errors.password}
+                </p>
+              )}
+              <p className="text-slate-500 text-sm mt-2 flex items-center">
+                <span className="mr-1">💡</span>
+                This password will be used to access your establishment owner portal after approval
+              </p>
             </div>
 
             <div className="group">
@@ -269,6 +443,11 @@ const AddEstablishmentRequest = () => {
                     type: '',
                     email: '',
                     address: '',
+                    city: '',
+                    state: '',
+                    pincode: '',
+                    phoneNumber: '',
+                    password: '',
                     notes: ''
                   });
                   setErrors({});

@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 import API_BASE_URL from '../config/api';
 
 // Store original console methods for potential restoration
@@ -18,6 +18,25 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
 
     if (token) {
+      // Check if token is expired before making request
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          const now = Date.now() / 1000;
+          if (payload.exp < now) {
+            console.log('Token expired, removing from storage');
+            localStorage.removeItem('token');
+            // Don't add expired token to request
+            return config;
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing token in request interceptor:', error);
+        localStorage.removeItem('token');
+        return config;
+      }
+
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -50,46 +69,53 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 401) {
-      // Check if it's a chat endpoint (handle more gracefully)
-      const isChatEndpoint = error.config?.url?.includes('/api/chat/');
-
-      // Check if we have a token
       const hasToken = localStorage.getItem('token');
-
-      // For chat endpoints, handle silently and don't redirect
-      if (isChatEndpoint) {
-        // For chat endpoints, clear token if it's invalid but don't redirect
-        if (hasToken) {
-          localStorage.removeItem('token');
-        }
-        // Return a silent error
-        const silentError = new Error('Chat authentication failed');
-        silentError.response = error.response;
-        silentError.config = error.config;
-        silentError.isChatAuthError = true;
-        return Promise.reject(silentError);
+      const errorMessage = error.response?.data?.message || '';
+      const requestUrl = error.config?.url || '';
+      
+      // Don't redirect if it's already an error endpoint or auth endpoint
+      if (requestUrl.includes('/error') || requestUrl.includes('/api/auth/')) {
+        return Promise.reject(error);
       }
-
+      
       // Check if it's a permission issue vs token expiration
-      const isPermissionIssue = error.response?.data?.message?.includes('Access denied') ||
-        error.response?.data?.message?.includes('privileges required');
+      const isPermissionIssue = errorMessage.includes('Access denied') ||
+                               errorMessage.includes('privileges required') ||
+                               errorMessage.includes('Unauthorized access');
 
-      // Check if it's a missing endpoint (which should not cause redirect)
-      const isMissingEndpoint = !error.response?.data?.message;
+      // Check if it's authentication required (token expired/invalid)
+      const isAuthRequired = errorMessage.includes('Full authentication is required') ||
+                             errorMessage.includes('JWT') ||
+                             errorMessage.includes('token') ||
+                             errorMessage.includes('Authentication required');
 
-      // Only redirect if:
-      // 1. It's not a permission issue
-      // 2. It's not a missing endpoint
-      // 3. We actually have a token (if no token, it's expected 401)
-      if (!isPermissionIssue && !isMissingEndpoint && hasToken) {
+      // Check if we're already on login page
+      const isOnLoginPage = window.location.pathname === '/login' || 
+                           window.location.pathname === '/register' ||
+                           window.location.pathname === '/';
+
+      // Redirect to login if:
+      // 1. We have a token but it's invalid/expired (auth required error)
+      // 2. OR we have a token but got generic 401 (likely expired)
+      // 3. AND we're not already on login page
+      // 4. AND it's not a permission issue (user has valid token but lacks permissions)
+      if (hasToken && !isOnLoginPage && (isAuthRequired || (!isPermissionIssue && !errorMessage))) {
+        console.log('🔄 Authentication failed, redirecting to login...', errorMessage);
         localStorage.removeItem('token');
 
-        // Redirect to login page if not already there
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        // Use a small delay to prevent multiple redirects
+        setTimeout(() => {
           window.location.href = '/login';
-        }
+        }, 100);
+      } else if (!hasToken && !isOnLoginPage && isAuthRequired) {
+        // No token but auth required - redirect to login
+        console.log('🔄 No token found, redirecting to login...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 100);
       }
     }
+    
     return Promise.reject(error);
   }
 );

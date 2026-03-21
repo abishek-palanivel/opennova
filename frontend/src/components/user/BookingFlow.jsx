@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import SecurePayment from './SecurePayment';
+import ScreenshotPaymentVerification from './ScreenshotPaymentVerification';
 // Time utilities available if needed
 
 const BookingFlow = ({ establishment, onClose }) => {
@@ -13,8 +14,11 @@ const BookingFlow = ({ establishment, onClose }) => {
     selectedItems: [],
     totalAmount: 0,
     paymentAmount: 0,
+    paymentMethod: null, // Only 'screenshot' method available
     paymentVerified: false,
-    verifiedPayment: null
+    verifiedPayment: null,
+    verificationData: null,
+    paymentPending: false
   });
   const [loading, setLoading] = useState(false);
 
@@ -78,7 +82,11 @@ const BookingFlow = ({ establishment, onClose }) => {
   const submitBooking = async () => {
     setLoading(true);
     try {
-      console.log('📝 Submitting booking with verified payment:', bookingData.verifiedPayment);
+      console.log('📝 Submitting booking with payment data:', {
+        verifiedPayment: bookingData.verifiedPayment,
+        verificationData: bookingData.verificationData,
+        paymentMethod: bookingData.paymentMethod
+      });
       
       const formData = new FormData();
       formData.append('establishmentId', establishment.id);
@@ -88,19 +96,18 @@ const BookingFlow = ({ establishment, onClose }) => {
       formData.append('totalAmount', bookingData.totalAmount);
       formData.append('paymentAmount', bookingData.paymentAmount);
       
-      // Use verified payment data - STRICT VERIFICATION REQUIRED
-      if (bookingData.verifiedPayment && bookingData.paymentVerified) {
-        formData.append('transactionId', bookingData.verifiedPayment.upiTransactionId);
-        formData.append('transactionRef', bookingData.verifiedPayment.transactionRef);
-        formData.append('paymentVerified', 'true');
-        console.log('✅ Payment verification data added to booking');
-        console.log('📝 Transaction Ref:', bookingData.verifiedPayment.transactionRef);
-        console.log('📝 UPI Transaction ID:', bookingData.verifiedPayment.upiTransactionId);
+      // Handle screenshot payment method
+      if (bookingData.paymentMethod === 'screenshot' && bookingData.verificationData) {
+        // Screenshot verification - pending owner approval
+        formData.append('transactionId', bookingData.verificationData.transactionId);
+        formData.append('transactionRef', bookingData.verificationData.transactionRef);
+        formData.append('paymentVerified', 'false'); // Will be verified by owner
+        formData.append('verificationId', bookingData.verificationData.verificationId);
+        console.log('📸 Screenshot verification data added to booking (pending approval)');
+        
       } else {
-        console.error('❌ No verified payment data available');
-        console.error('❌ Payment verified:', bookingData.paymentVerified);
-        console.error('❌ Verified payment object:', bookingData.verifiedPayment);
-        alert('❌ PAYMENT VERIFICATION REQUIRED\n\nYou must complete payment verification before creating a booking.\nPlease go back to the payment step and verify your payment first.');
+        console.error('❌ No payment verification data available');
+        alert('❌ PAYMENT VERIFICATION REQUIRED\n\nYou must complete payment verification before creating a booking.\nPlease go back to the payment step and complete the payment process.');
         return;
       }
 
@@ -114,8 +121,12 @@ const BookingFlow = ({ establishment, onClose }) => {
       console.log('✅ Booking created successfully:', response.data);
       setCurrentStep(4);
       
-      // Show success message
-      alert('🎉 Booking created successfully! Check your email for confirmation details.');
+      // Show success message for screenshot verification
+      if (bookingData.paymentMethod === 'screenshot') {
+        alert('🎉 Booking submitted successfully!\n\nYour booking is pending payment verification by the establishment owner.\nYou will receive confirmation once your payment is approved.');
+      } else {
+        alert('🎉 Booking created successfully! Check your email for confirmation details.');
+      }
       
       // Auto-redirect after 5 seconds to give user time to read
       setTimeout(() => {
@@ -190,15 +201,17 @@ const BookingFlow = ({ establishment, onClose }) => {
       case 2:
         return bookingData.selectedItems.length > 0;
       case 3:
-        // PAYMENT GATE: User MUST pay exact amount before proceeding
-        const paymentVerified = bookingData.paymentVerified && bookingData.verifiedPayment;
+        // PAYMENT GATE: User MUST complete screenshot verification before proceeding
+        const screenshotSubmitted = bookingData.verificationData && bookingData.paymentPending;
+        
         console.log('🚪 PAYMENT GATE CHECK:', {
           step: currentStep,
-          paymentVerified: bookingData.paymentVerified,
-          hasVerifiedPayment: !!bookingData.verifiedPayment,
-          canProceed: paymentVerified
+          paymentMethod: bookingData.paymentMethod,
+          screenshotSubmitted: screenshotSubmitted,
+          canProceed: screenshotSubmitted
         });
-        return paymentVerified;
+        
+        return screenshotSubmitted;
       default:
         return true;
     }
@@ -469,7 +482,7 @@ const BookingFlow = ({ establishment, onClose }) => {
             <div className="space-y-6 animate-fade-in-up">
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-slate-900 mb-2">Secure Payment</h3>
-                <p className="text-slate-600">Complete your payment with verified UPI transaction</p>
+                <p className="text-slate-600">Choose your preferred payment verification method</p>
               </div>
 
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200 mb-6">
@@ -490,12 +503,49 @@ const BookingFlow = ({ establishment, onClose }) => {
                 </div>
               </div>
 
-              <SecurePayment
-                establishment={establishment}
-                amount={bookingData.paymentAmount}
-                onPaymentVerified={handlePaymentVerified}
-                onCancel={handlePaymentCancel}
-              />
+              {/* Payment Method Selection */}
+              {!bookingData.paymentMethod && (
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-center mb-4">Choose Payment Method:</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Screenshot Verification Method */}
+                    <div 
+                      onClick={() => setBookingData(prev => ({ ...prev, paymentMethod: 'screenshot' }))}
+                      className="border-2 border-blue-200 rounded-lg p-6 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
+                    >
+                      <div className="text-center">
+                        <div className="text-4xl mb-3">📸</div>
+                        <h5 className="font-semibold text-gray-800 mb-2">Screenshot Verification</h5>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Pay via UPI and upload screenshot for owner verification
+                        </p>
+                        <div className="text-xs text-green-600 font-medium">
+                          ✅ Most Secure • Owner Verified
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Screenshot Payment Component */}
+              {bookingData.paymentMethod === 'screenshot' && (
+                <ScreenshotPaymentVerification
+                  establishment={establishment}
+                  amount={bookingData.paymentAmount}
+                  onVerificationSubmitted={(verificationData) => {
+                    setBookingData(prev => ({
+                      ...prev,
+                      paymentVerified: false, // Will be verified by owner
+                      verificationData: verificationData,
+                      paymentPending: true
+                    }));
+                    alert('📸 Payment verification submitted!\n\nYour payment screenshot has been sent to the establishment owner for review.\nYou will be notified once it\'s approved.');
+                  }}
+                  onCancel={() => setBookingData(prev => ({ ...prev, paymentMethod: null }))}
+                />
+              )}
             </div>
           )}
 

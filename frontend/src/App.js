@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import LandingPage from './components/common/NewLandingPage';
 import LoginPage from './components/auth/LoginPage';
 import ResetPassword from './components/auth/ResetPassword';
+import GoogleOAuthSuccess from './components/auth/GoogleOAuthSuccess';
+import GoogleSignupConfirmation from './components/auth/GoogleSignupConfirmation';
 import UserDashboard from './components/user/UserDashboard';
 import OwnerDashboard from './components/owner/OwnerDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -38,6 +40,9 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<LoginPage />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/google/success" element={<GoogleOAuthSuccess />} />
+            <Route path="/auth/google/error" element={<GoogleOAuthSuccess />} />
+            <Route path="/auth/google/signup" element={<GoogleSignupConfirmation />} />
             
             <Route path="/user/*" element={
               <ProtectedRoute allowedRoles={['USER']}>

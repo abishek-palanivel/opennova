@@ -12,10 +12,9 @@ import java.util.List;
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     
-    List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);
-    
     List<Booking> findByEstablishmentInOrderByCreatedAtDesc(List<Establishment> establishments);
     
+    @Query("SELECT b FROM Booking b LEFT JOIN FETCH b.user LEFT JOIN FETCH b.establishment ORDER BY b.createdAt DESC")
     List<Booking> findAllByOrderByCreatedAtDesc();
     
     long countByStatus(com.opennova.model.BookingStatus status);
@@ -23,17 +22,28 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT SUM(b.paymentAmount) FROM Booking b WHERE b.status = :status")
     java.math.BigDecimal sumPaidAmountByStatus(@Param("status") com.opennova.model.BookingStatus status);
     
+    @Query("SELECT SUM(b.paymentAmount) FROM Booking b WHERE b.paymentStatus = 'PAID'")
+    java.math.BigDecimal sumPaidAmountByPaymentStatus();
+    
     List<Booking> findByEstablishmentIdAndStatus(Long establishmentId, com.opennova.model.BookingStatus status);
     
-    @Query("SELECT b FROM Booking b WHERE b.establishment.owner.id = :ownerId ORDER BY b.createdAt DESC")
+    @Query("SELECT b FROM Booking b LEFT JOIN FETCH b.user LEFT JOIN FETCH b.establishment WHERE b.establishment.owner.id = :ownerId ORDER BY b.createdAt DESC")
     List<Booking> findByEstablishmentOwnerIdOrderByCreatedAtDesc(@Param("ownerId") Long ownerId);
     
     @Query("SELECT b FROM Booking b WHERE b.establishment.id = :establishmentId AND b.visitingTime = :visitingTime")
     List<Booking> findByEstablishmentIdAndVisitingTime(@Param("establishmentId") Long establishmentId, @Param("visitingTime") String visitingTime);
     
-    List<Booking> findByEstablishmentIdOrderByCreatedAtDesc(Long establishmentId);
+    @Query("SELECT b FROM Booking b LEFT JOIN FETCH b.user LEFT JOIN FETCH b.establishment WHERE b.establishment.id = :establishmentId ORDER BY b.createdAt DESC")
+    List<Booking> findByEstablishmentIdOrderByCreatedAtDesc(@Param("establishmentId") Long establishmentId);
     
-    List<Booking> findTop10ByUserIdOrderByCreatedAtDesc(Long userId);
+    @Query("SELECT b FROM Booking b LEFT JOIN FETCH b.user LEFT JOIN FETCH b.establishment WHERE b.user.id = :userId ORDER BY b.createdAt DESC")
+    List<Booking> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
     
-    List<Booking> findTop5ByUserIdOrderByCreatedAtDesc(Long userId);
+    @Query("SELECT b FROM Booking b LEFT JOIN FETCH b.user LEFT JOIN FETCH b.establishment WHERE b.user.id = :userId ORDER BY b.createdAt DESC LIMIT 10")
+    List<Booking> findTop10ByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+    
+    @Query("SELECT b FROM Booking b LEFT JOIN FETCH b.user LEFT JOIN FETCH b.establishment WHERE b.user.id = :userId ORDER BY b.createdAt DESC LIMIT 5")
+    List<Booking> findTop5ByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+    
+    Booking findByTransactionId(String transactionId);
 }

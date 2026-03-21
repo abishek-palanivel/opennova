@@ -9,13 +9,16 @@ import com.opennova.service.MenuService;
 import com.opennova.service.DoctorService;
 import com.opennova.service.CollectionService;
 import com.opennova.service.SharedStateService;
+import com.opennova.service.AuthService;
 import com.opennova.model.Establishment;
 import com.opennova.model.Menu;
+import com.opennova.repository.EstablishmentRepository;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/public")
@@ -27,6 +30,9 @@ public class PublicController {
     
     @Autowired
     private EstablishmentService establishmentService;
+
+    @Autowired
+    private AuthService authService;
     
     @Autowired
     private MenuService menuService;
@@ -42,6 +48,45 @@ public class PublicController {
     
     @Autowired
     private com.opennova.service.UserService userService;
+    
+    @Autowired
+    private com.opennova.service.BookingService bookingService;
+    
+    @Autowired
+    private com.opennova.service.QRCodeService qrCodeService;
+
+    @Autowired
+    private EstablishmentRepository establishmentRepository;
+
+    /**
+     * Serve uploaded images publicly
+     */
+    @GetMapping("/uploads/{folder}/{filename:.+}")
+    public ResponseEntity<org.springframework.core.io.Resource> serveFile(
+            @PathVariable String folder, 
+            @PathVariable String filename) {
+        try {
+            java.nio.file.Path filePath = java.nio.file.Paths.get("uploads", folder, filename);
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.FileSystemResource(filePath);
+            
+            if (resource.exists() && resource.isReadable()) {
+                String contentType = java.nio.file.Files.probeContentType(filePath);
+                if (contentType == null) {
+                    contentType = "application/octet-stream";
+                }
+                
+                return ResponseEntity.ok()
+                    .contentType(org.springframework.http.MediaType.parseMediaType(contentType))
+                    .header("Cache-Control", "max-age=3600")
+                    .body(resource);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            System.err.println("Error serving file: " + e.getMessage());
+            return ResponseEntity.notFound().build();
+        }
+    }
 
     @GetMapping("/health")
     public ResponseEntity<?> healthCheck() {
@@ -76,26 +121,55 @@ public class PublicController {
         try {
             List<Map<String, Object>> establishments = new ArrayList<>();
             
-            // Mock establishment data that reflects real-time changes
-            Map<String, Object> establishment1 = new HashMap<>();
-            establishment1.put("id", 1L);
-            establishment1.put("name", "Sample Hotel");
-            establishment1.put("type", "HOTEL");
-            establishment1.put("address", "Thangavel Nagar, 4/122, Covai Road, Reddipalayam, Karur, Tamil Nadu 639008");
-            establishment1.put("contactNumber", "8012975411");
-            establishment1.put("operatingHours", "9:00 AM - 10:00 PM");
-            establishment1.put("upiId", "abishek1234@upi");
-            establishment1.put("email", "hotel@example.com");
-            establishment1.put("latitude", 10.963788560368593);
-            establishment1.put("longitude", 78.0483853359511);
-            establishment1.put("averageRating", 4.5);
-            establishment1.put("reviewCount", 25);
-            
-            // Get real-time status from SharedStateService
-            String cachedStatus = sharedStateService.getState("establishment_status_hotel@example.com", String.class);
-            establishment1.put("status", cachedStatus != null ? cachedStatus : "OPEN");
-            
-            establishments.add(establishment1);
+            // Get real establishments from database
+            try {
+                List<Establishment> dbEstablishments = establishmentService.findAll();
+                
+                if (dbEstablishments != null && !dbEstablishments.isEmpty()) {
+                    System.out.println("✅ Found " + dbEstablishments.size() + " live establishments in database");
+                    
+                    for (Establishment est : dbEstablishments) {
+                        if (est.getIsActive() != null && est.getIsActive()) {
+                            Map<String, Object> estData = new HashMap<>();
+                            estData.put("id", est.getId());
+                            estData.put("name", est.getName());
+                            estData.put("type", est.getType() != null ? est.getType().toString() : "UNKNOWN");
+                            estData.put("address", est.getAddress());
+                            estData.put("contactNumber", est.getPhoneNumber());
+                            estData.put("operatingHours", est.getOperatingHours());
+                            estData.put("upiId", est.getUpiId());
+                            estData.put("email", est.getEmail());
+                            estData.put("latitude", est.getLatitude());
+                            estData.put("longitude", est.getLongitude());
+                            
+                            // Get real-time status
+                            try {
+                                String realTimeStatus = realTimeUpdateService.getEstablishmentStatus(est.getId());
+                                if (realTimeStatus != null && !realTimeStatus.equals("ERROR") && !realTimeStatus.equals("UNKNOWN")) {
+                                    estData.put("status", realTimeStatus);
+                                } else {
+                                    estData.put("status", est.getStatus() != null ? est.getStatus().toString() : "OPEN");
+                                }
+                            } catch (Exception e) {
+                                estData.put("status", est.getStatus() != null ? est.getStatus().toString() : "OPEN");
+                            }
+                            
+                            // Calculate real ratings
+                            try {
+                                estData.put("averageRating", establishmentService.calculateAverageRating(est.getId()));
+                                estData.put("reviewCount", establishmentService.getTotalReviews(est.getId()));
+                            } catch (Exception e) {
+                                estData.put("averageRating", 0.0);
+                                estData.put("reviewCount", 0);
+                            }
+                            
+                            establishments.add(estData);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to fetch live establishments from database: " + e.getMessage());
+            }
             
             return ResponseEntity.ok(establishments);
         } catch (Exception e) {
@@ -132,7 +206,7 @@ public class PublicController {
                                 estData.put("name", est.getName());
                                 estData.put("type", est.getType() != null ? est.getType().toString() : "UNKNOWN");
                                 estData.put("address", est.getAddress());
-                                estData.put("contactNumber", est.getContactNumber());
+                                estData.put("contactNumber", est.getPhoneNumber());
                                 estData.put("operatingHours", est.getOperatingHours());
                                 estData.put("status", est.getStatus() != null ? est.getStatus().toString() : "OPEN");
                                 estData.put("email", est.getEmail());
@@ -176,98 +250,9 @@ public class PublicController {
                 e.printStackTrace();
             }
             
-            boolean foundRealData = !establishments.isEmpty();
-            
-            // If no real data found, create default establishments for demo
-            if (!foundRealData) {
-                System.out.println("No establishments found in database, creating default establishments for demo");
-                
-                // Default Hotel
-                Map<String, Object> hotel = new HashMap<>();
-                hotel.put("id", 1L);
-                hotel.put("name", "Grand Hotel Karur");
-                hotel.put("type", "HOTEL");
-                hotel.put("address", "Thangavel Nagar, 4/122, Covai Road, PO, Reddipalayam, Andankoll East, Karur, Tamil Nadu 639008");
-                hotel.put("contactNumber", "8012975411");
-                hotel.put("operatingHours", "9:00 AM - 10:00 PM");
-                hotel.put("status", "OPEN");
-                hotel.put("email", "hotel@example.com");
-                hotel.put("latitude", 10.963788560368593);
-                hotel.put("longitude", 78.0483853359511);
-                hotel.put("averageRating", 4.5);
-                hotel.put("reviewCount", 25);
-                establishments.add(hotel);
-                
-                // Default Hospital
-                Map<String, Object> hospital = new HashMap<>();
-                hospital.put("id", 2L);
-                hospital.put("name", "City Hospital Namakkal");
-                hospital.put("type", "HOSPITAL");
-                hospital.put("address", "6/288, Trichy Rd, Andavar Nagar, Namakkal, Tamil Nadu 637001");
-                hospital.put("contactNumber", "8012975411");
-                hospital.put("operatingHours", "24 Hours");
-                hospital.put("status", "OPEN");
-                hospital.put("email", "hospital@example.com");
-                hospital.put("latitude", 11.2189);
-                hospital.put("longitude", 78.1677);
-                hospital.put("averageRating", 4.2);
-                hospital.put("reviewCount", 18);
-                hospital.put("upiId", "hospital@upi");
-                
-                // Add default doctors for the hospital
-                List<Map<String, Object>> defaultDoctors = new ArrayList<>();
-                
-                Map<String, Object> doctor1 = new HashMap<>();
-                doctor1.put("id", 1L);
-                doctor1.put("name", "Dr. Rajesh Kumar");
-                doctor1.put("specialization", "Cardiology");
-                doctor1.put("consultationFee", 500);
-                doctor1.put("price", 500);
-                doctor1.put("availabilityTime", "9:00 AM - 5:00 PM");
-                doctor1.put("available", true);
-                doctor1.put("imagePath", null);
-                defaultDoctors.add(doctor1);
-                
-                Map<String, Object> doctor2 = new HashMap<>();
-                doctor2.put("id", 2L);
-                doctor2.put("name", "Dr. Priya Sharma");
-                doctor2.put("specialization", "Pediatrics");
-                doctor2.put("consultationFee", 400);
-                doctor2.put("price", 400);
-                doctor2.put("availabilityTime", "10:00 AM - 6:00 PM");
-                doctor2.put("available", true);
-                doctor2.put("imagePath", null);
-                defaultDoctors.add(doctor2);
-                
-                Map<String, Object> doctor3 = new HashMap<>();
-                doctor3.put("id", 3L);
-                doctor3.put("name", "Dr. Arun Patel");
-                doctor3.put("specialization", "General Medicine");
-                doctor3.put("consultationFee", 300);
-                doctor3.put("price", 300);
-                doctor3.put("availabilityTime", "8:00 AM - 8:00 PM");
-                doctor3.put("available", true);
-                doctor3.put("imagePath", null);
-                defaultDoctors.add(doctor3);
-                
-                hospital.put("doctors", defaultDoctors);
-                establishments.add(hospital);
-                
-                // Default Shop
-                Map<String, Object> shop = new HashMap<>();
-                shop.put("id", 3L);
-                shop.put("name", "Fashion Plaza");
-                shop.put("type", "SHOP");
-                shop.put("address", "CP City center 6/98+H4F Salem, Road, R.P.Pudur, Namakkal, Tamil Nadu 637001");
-                shop.put("contactNumber", "8012975411");
-                shop.put("operatingHours", "10:00 AM - 9:00 PM");
-                shop.put("status", "OPEN");
-                shop.put("email", "shop@example.com");
-                shop.put("latitude", 11.2189);
-                shop.put("longitude", 78.1677);
-                shop.put("averageRating", 4.0);
-                shop.put("reviewCount", 12);
-                establishments.add(shop);
+            // Log if no establishments found
+            if (establishments.isEmpty()) {
+                System.out.println("⚠️ No establishments found in database. Run database migration 16_seed_demo_establishments.sql to add demo data.");
             }
             
             // Apply filters
@@ -300,31 +285,9 @@ public class PublicController {
         } catch (Exception e) {
             System.err.println("Failed to fetch establishments: " + e.getMessage());
             e.printStackTrace();
-            
-            // Return empty list instead of error to prevent frontend crashes
-            List<Map<String, Object>> fallbackEstablishments = new ArrayList<>();
-            
-            // Create minimal fallback data
-            Map<String, Object> fallbackHotel = new HashMap<>();
-            fallbackHotel.put("id", 1L);
-            fallbackHotel.put("name", "Sample Hotel");
-            fallbackHotel.put("type", "HOTEL");
-            fallbackHotel.put("address", "Sample Address");
-            fallbackHotel.put("contactNumber", "1234567890");
-            fallbackHotel.put("operatingHours", "9:00 AM - 10:00 PM");
-            fallbackHotel.put("status", "OPEN");
-            fallbackHotel.put("email", "hotel@example.com");
-            fallbackHotel.put("latitude", 10.9638);
-            fallbackHotel.put("longitude", 78.0484);
-            fallbackHotel.put("averageRating", 4.5);
-            fallbackHotel.put("reviewCount", 25);
-            fallbackHotel.put("upiId", "sample@upi");
-            fallbackHotel.put("profileImagePath", null);
-            fallbackHotel.put("weeklySchedule", null);
-            fallbackEstablishments.add(fallbackHotel);
-            
-            System.out.println("Returning fallback establishments due to error");
-            return ResponseEntity.ok(fallbackEstablishments);
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Failed to fetch establishments: " + e.getMessage());
+            return ResponseEntity.status(500).body(error);
         }
     }
 
@@ -352,7 +315,7 @@ public class PublicController {
             establishmentData.put("name", establishment.getName());
             establishmentData.put("type", establishment.getType().toString());
             establishmentData.put("address", establishment.getAddress());
-            establishmentData.put("contactNumber", establishment.getContactNumber());
+            establishmentData.put("contactNumber", establishment.getPhoneNumber());
             establishmentData.put("operatingHours", establishment.getOperatingHours());
             establishmentData.put("weeklySchedule", establishment.getWeeklySchedule());
             establishmentData.put("status", establishment.getStatus().toString());
@@ -368,33 +331,47 @@ public class PublicController {
             List<Map<String, Object>> menuItems = new ArrayList<>();
             
             System.out.println("📝 Processing " + menus.size() + " menus for user portal");
-            for (Menu menu : menus) {
-                Map<String, Object> menuItem = new HashMap<>();
-                menuItem.put("id", menu.getId());
-                menuItem.put("name", menu.getName());
-                menuItem.put("description", menu.getDescription());
-                menuItem.put("price", menu.getPrice());
-                menuItem.put("isAvailable", menu.getIsAvailable());
-                menuItem.put("availabilityTime", menu.getAvailabilityTime());
-                menuItem.put("category", menu.getCategory());
-                menuItem.put("preparationTime", menu.getPreparationTime());
-                menuItem.put("isVegetarian", menu.getIsVegetarian());
-                menuItem.put("isSpecial", menu.getIsSpecial());
-                menuItem.put("imagePath", menu.getImagePath());
-                
-                // Add default availability schedule
-                Map<String, Object> schedule = new HashMap<>();
-                schedule.put("monday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
-                schedule.put("tuesday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
-                schedule.put("wednesday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
-                schedule.put("thursday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
-                schedule.put("friday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
-                schedule.put("saturday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
-                schedule.put("sunday", Map.of("isAvailable", true, "startTime", "10:00", "endTime", "20:00"));
-                menuItem.put("availabilitySchedule", schedule);
-                
-                menuItems.add(menuItem);
-                System.out.println("  ✅ Added menu item: " + menu.getName() + " - ₹" + menu.getPrice());
+                for (Menu menu : menus) {
+                // Only include active and available menus
+                if (menu.getIsActive() && menu.getIsAvailable()) {
+                    Map<String, Object> menuItem = new HashMap<>();
+                    menuItem.put("id", menu.getId());
+                    menuItem.put("name", menu.getName());
+                    menuItem.put("description", menu.getDescription());
+                    menuItem.put("price", menu.getPrice());
+                    menuItem.put("isAvailable", menu.getIsAvailable());
+                    menuItem.put("available", menu.getIsAvailable()); // Add for frontend compatibility
+                    menuItem.put("availabilityTime", menu.getAvailabilityTime());
+                    menuItem.put("category", menu.getCategory());
+                    menuItem.put("preparationTime", menu.getPreparationTime());
+                    menuItem.put("isVegetarian", menu.getIsVegetarian());
+                    menuItem.put("isSpecial", menu.getIsSpecial());
+                    
+                    // Fix image URL for user portal
+                    String imagePath = menu.getImagePath();
+                    if (imagePath != null && !imagePath.trim().isEmpty()) {
+                        String imageUrl = "http://localhost:8080/api/images/" + imagePath;
+                        menuItem.put("imagePath", imageUrl);
+                    } else {
+                        menuItem.put("imagePath", null);
+                    }
+                    
+                    // Add default availability schedule
+                    Map<String, Object> schedule = new HashMap<>();
+                    schedule.put("monday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
+                    schedule.put("tuesday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
+                    schedule.put("wednesday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
+                    schedule.put("thursday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
+                    schedule.put("friday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
+                    schedule.put("saturday", Map.of("isAvailable", true, "startTime", "09:00", "endTime", "21:00"));
+                    schedule.put("sunday", Map.of("isAvailable", true, "startTime", "10:00", "endTime", "20:00"));
+                    menuItem.put("availabilitySchedule", schedule);
+                    
+                    menuItems.add(menuItem);
+                    System.out.println("  ✅ Added menu item: " + menu.getName() + " - ₹" + menu.getPrice() + " (Available: " + menu.getIsAvailable() + ")");
+                } else {
+                    System.out.println("  ⏭️ Skipped menu item: " + menu.getName() + " (Active: " + menu.getIsActive() + ", Available: " + menu.getIsAvailable() + ")");
+                }
             }
             
             establishmentData.put("menuItems", menuItems);
@@ -408,7 +385,8 @@ public class PublicController {
                 
                 System.out.println("📝 Found " + doctors.size() + " doctors for hospital");
                 for (com.opennova.model.Doctor doctor : doctors) {
-                    if (doctor.getIsActive()) {
+                    // Only include active and available doctors
+                    if (doctor.getIsActive() && doctor.getIsAvailable()) {
                         Map<String, Object> doctorItem = new HashMap<>();
                         doctorItem.put("id", doctor.getId());
                         doctorItem.put("name", doctor.getName());
@@ -416,10 +394,22 @@ public class PublicController {
                         doctorItem.put("consultationFee", doctor.getPrice()); // Use consultationFee for frontend compatibility
                         doctorItem.put("price", doctor.getPrice()); // Keep price for backward compatibility
                         doctorItem.put("availabilityTime", doctor.getAvailabilityTime());
-                        doctorItem.put("available", true); // Default to available
-                        doctorItem.put("imagePath", doctor.getImagePath());
+                        doctorItem.put("available", doctor.getIsAvailable()); // Add for frontend compatibility
+                        doctorItem.put("isAvailable", doctor.getIsAvailable()); // Keep for consistency
+                        
+                        // Fix image URL for user portal
+                        String imagePath = doctor.getImagePath();
+                        if (imagePath != null && !imagePath.trim().isEmpty()) {
+                            String imageUrl = "http://localhost:8080/api/images/" + imagePath;
+                            doctorItem.put("imagePath", imageUrl);
+                        } else {
+                            doctorItem.put("imagePath", null);
+                        }
+                        
                         doctorItems.add(doctorItem);
                         System.out.println("  ✅ Added doctor: " + doctor.getName() + " - ₹" + doctor.getPrice());
+                    } else {
+                        System.out.println("  ⏭️ Skipped doctor: " + doctor.getName() + " (Active: " + doctor.getIsActive() + ", Available: " + doctor.getIsAvailable() + ")");
                     }
                 }
                 establishmentData.put("doctors", doctorItems);
@@ -432,7 +422,8 @@ public class PublicController {
                 List<Map<String, Object>> collectionItems = new ArrayList<>();
                 
                 for (com.opennova.model.Collection collection : collections) {
-                    if (collection.getIsActive()) {
+                    // Only include active and available collections
+                    if (collection.getIsActive() && collection.getIsAvailable()) {
                         Map<String, Object> collectionItem = new HashMap<>();
                         collectionItem.put("id", collection.getId());
                         collectionItem.put("itemName", collection.getItemName());
@@ -443,8 +434,19 @@ public class PublicController {
                         collectionItem.put("fabric", collection.getFabric());
                         collectionItem.put("brand", collection.getBrand());
                         collectionItem.put("stock", collection.getStock());
-                        collectionItem.put("imagePath", collection.getImagePath());
                         collectionItem.put("isSpecialOffer", collection.getIsSpecialOffer());
+                        collectionItem.put("available", collection.getIsAvailable()); // Add for frontend compatibility
+                        collectionItem.put("isAvailable", collection.getIsAvailable()); // Keep for consistency
+                        
+                        // Fix image URL for user portal
+                        String imagePath = collection.getImagePath();
+                        if (imagePath != null && !imagePath.trim().isEmpty()) {
+                            String imageUrl = "http://localhost:8080/api/images/" + imagePath;
+                            collectionItem.put("imagePath", imageUrl);
+                        } else {
+                            collectionItem.put("imagePath", null);
+                        }
+                        
                         collectionItems.add(collectionItem);
                     }
                 }
@@ -478,88 +480,160 @@ public class PublicController {
         }
     }
 
-    @GetMapping("/generate-password-hash")
-    public ResponseEntity<?> generatePasswordHash(@RequestParam String password) {
-        try {
-            org.springframework.security.crypto.password.PasswordEncoder encoder = 
-                new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
-            String hashedPassword = encoder.encode(password);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("password", password);
-            response.put("hashedPassword", hashedPassword);
-            response.put("message", "Password hash generated successfully");
-            
-            // Test if the hash matches
-            boolean matches = encoder.matches(password, hashedPassword);
-            response.put("testMatches", matches);
-            
-            // Test with the existing hash from seed data
-            String existingHash = "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi";
-            boolean existingMatches = encoder.matches(password, existingHash);
-            response.put("existingHashMatches", existingMatches);
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "Failed to generate password hash: " + e.getMessage());
-            return ResponseEntity.status(500).body(error);
-        }
-    }
+    // Emergency unlock and reset endpoints removed - account locking feature has been disabled
 
-    @GetMapping("/test-establishment-data/{id}")
-    public ResponseEntity<?> testEstablishmentData(@PathVariable Long id) {
-        try {
-            Establishment establishment = establishmentService.findById(id);
-            if (establishment == null) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            Map<String, Object> testData = new HashMap<>();
-            testData.put("id", establishment.getId());
-            testData.put("name", establishment.getName());
-            testData.put("profileImagePath", establishment.getProfileImagePath());
-            testData.put("operatingHours", establishment.getOperatingHours());
-            testData.put("weeklySchedule", establishment.getWeeklySchedule());
-            testData.put("status", establishment.getStatus().toString());
-            
-            return ResponseEntity.ok(testData);
-        } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "Failed to fetch test data: " + e.getMessage());
-            return ResponseEntity.status(500).body(error);
-        }
-    }
 
-    @PostMapping("/reset-admin-password")
-    public ResponseEntity<?> resetAdminPassword(@RequestParam String newPassword) {
+    /**
+     * Get establishment menus (public access)
+     */
+    @GetMapping("/establishments/{id}/menus")
+    public ResponseEntity<?> getEstablishmentMenus(@PathVariable Long id) {
         try {
-            org.springframework.security.crypto.password.PasswordEncoder encoder = 
-                new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
-            String hashedPassword = encoder.encode(newPassword);
+            System.out.println("🍽️ Getting menus for establishment ID: " + id);
             
-            // Find admin user and update password
-            com.opennova.model.User admin = userService.findByEmailSafe("abishekopennova@gmail.com");
-            if (admin == null) {
+            Optional<Establishment> establishment = establishmentRepository.findById(id);
+            if (!establishment.isPresent()) {
                 Map<String, String> error = new HashMap<>();
-                error.put("message", "Admin user not found");
+                error.put("message", "Establishment not found");
                 return ResponseEntity.status(404).body(error);
             }
             
-            admin.setPassword(hashedPassword);
-            admin.setUpdatedAt(java.time.LocalDateTime.now());
-            userService.save(admin);
+            Establishment est = establishment.get();
+            
+            // Get active menus for this establishment
+            List<Menu> menus = menuService.getMenusByEstablishmentId(id);
+            List<Map<String, Object>> menuList = new ArrayList<>();
+            
+            for (Menu menu : menus) {
+                Map<String, Object> menuData = new HashMap<>();
+                menuData.put("id", menu.getId());
+                menuData.put("name", menu.getName());
+                menuData.put("description", menu.getDescription());
+                menuData.put("price", menu.getPrice());
+                menuData.put("isAvailable", menu.getIsAvailable());
+                menuData.put("category", menu.getCategory());
+                menuData.put("availabilityTime", menu.getAvailabilityTime());
+                menuData.put("preparationTime", menu.getPreparationTime());
+                menuData.put("isVegetarian", menu.getIsVegetarian());
+                menuData.put("isSpecial", menu.getIsSpecial());
+                
+                // Fix image URL to be accessible from frontend
+                String imagePath = menu.getImagePath();
+                if (imagePath != null && !imagePath.trim().isEmpty()) {
+                    String imageUrl = "http://localhost:8080/api/images/" + imagePath;
+                    menuData.put("imagePath", imageUrl);
+                    menuData.put("imageUrl", imageUrl);
+                } else {
+                    menuData.put("imagePath", null);
+                    menuData.put("imageUrl", null);
+                }
+                
+                menuList.add(menuData);
+            }
             
             Map<String, Object> response = new HashMap<>();
-            response.put("message", "Admin password reset successfully");
-            response.put("email", admin.getEmail());
-            response.put("newPasswordHash", hashedPassword);
+            response.put("establishmentId", id);
+            response.put("establishmentName", est.getName());
+            response.put("menus", menuList);
+            response.put("totalMenus", menuList.size());
+            
+            System.out.println("✅ Found " + menuList.size() + " menus for: " + est.getName());
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            System.err.println("❌ Failed to get establishment menus: " + e.getMessage());
+            e.printStackTrace();
             Map<String, String> error = new HashMap<>();
-            error.put("message", "Failed to reset admin password: " + e.getMessage());
-            return ResponseEntity.status(500).body(error);
+            error.put("message", "Failed to get establishment menus: " + e.getMessage());
+            return ResponseEntity.badRequest().body(error);
         }
     }
+
+    /**
+     * QR Code Verification Endpoint - Public access for scanned QR codes
+     */
+    @GetMapping("/verify")
+    public ResponseEntity<?> verifyBookingQR(
+            @RequestParam Long booking,
+            @RequestParam Long establishment,
+            @RequestParam String customer,
+            @RequestParam String date,
+            @RequestParam String time,
+            @RequestParam Double amount,
+            @RequestParam String status,
+            @RequestParam String ref) {
+        try {
+            System.out.println("🔍 QR Code verification request:");
+            System.out.println("   - Booking ID: " + booking);
+            System.out.println("   - Establishment ID: " + establishment);
+            System.out.println("   - Customer: " + customer);
+            System.out.println("   - Reference: " + ref);
+            
+            // Verify the booking exists and matches the QR data
+            com.opennova.model.Booking bookingEntity = bookingService.getBookingById(booking);
+            if (bookingEntity == null) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("valid", false);
+                response.put("message", "Booking not found");
+                response.put("timestamp", java.time.LocalDateTime.now());
+                return ResponseEntity.ok(response);
+            }
+            
+            // Verify establishment matches
+            if (!bookingEntity.getEstablishment().getId().equals(establishment)) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("valid", false);
+                response.put("message", "Establishment mismatch");
+                response.put("timestamp", java.time.LocalDateTime.now());
+                return ResponseEntity.ok(response);
+            }
+            
+            // Verify transaction reference matches
+            if (!ref.equals(bookingEntity.getTransactionId())) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("valid", false);
+                response.put("message", "Transaction reference mismatch");
+                response.put("timestamp", java.time.LocalDateTime.now());
+                return ResponseEntity.ok(response);
+            }
+            
+            // Create verification response with booking details
+            Map<String, Object> response = new HashMap<>();
+            response.put("valid", true);
+            response.put("message", "Booking verified successfully");
+            response.put("timestamp", java.time.LocalDateTime.now());
+            
+            // Add booking details for display
+            Map<String, Object> bookingDetails = new HashMap<>();
+            bookingDetails.put("bookingId", bookingEntity.getId());
+            bookingDetails.put("customerName", bookingEntity.getUser() != null ? bookingEntity.getUser().getName() : "Guest");
+            bookingDetails.put("customerEmail", bookingEntity.getUserEmail());
+            bookingDetails.put("establishmentName", bookingEntity.getEstablishment().getName());
+            bookingDetails.put("establishmentType", bookingEntity.getEstablishment().getType().toString());
+            bookingDetails.put("visitingDate", bookingEntity.getVisitingDate());
+            bookingDetails.put("visitingTime", bookingEntity.getVisitingTime());
+            bookingDetails.put("totalAmount", bookingEntity.getAmount() != null ? bookingEntity.getAmount().doubleValue() : 0.0);
+            bookingDetails.put("paidAmount", bookingEntity.getPaymentAmount() != null ? bookingEntity.getPaymentAmount().doubleValue() : 0.0);
+            bookingDetails.put("status", bookingEntity.getStatus().toString());
+            bookingDetails.put("transactionId", bookingEntity.getTransactionId());
+            bookingDetails.put("createdAt", bookingEntity.getCreatedAt());
+            
+            response.put("booking", bookingDetails);
+            
+            System.out.println("✅ QR Code verified successfully for booking: " + booking);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ QR verification error: " + e.getMessage());
+            e.printStackTrace();
+            Map<String, Object> response = new HashMap<>();
+            response.put("valid", false);
+            response.put("message", "Verification failed: " + e.getMessage());
+            response.put("timestamp", java.time.LocalDateTime.now());
+            return ResponseEntity.ok(response);
+        }
+    }
+
+
 }

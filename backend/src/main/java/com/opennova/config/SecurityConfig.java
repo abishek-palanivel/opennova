@@ -70,9 +70,19 @@ public class SecurityConfig {
         ));
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowedHeaders(Arrays.asList(
+            "Authorization", 
+            "Content-Type", 
+            "Accept", 
+            "Origin", 
+            "Access-Control-Request-Method", 
+            "Access-Control-Request-Headers",
+            "X-Requested-With",
+            "Cache-Control"
+        ));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -87,19 +97,23 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                .requestMatchers("/api/auth/google", "/api/auth/google/callback", "/api/auth/google/token", "/api/auth/google/signup").permitAll()
+                .requestMatchers("/api/auth/refresh").authenticated()
                 .requestMatchers("/api/auth/profile").authenticated()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/files/**").permitAll()
+                .requestMatchers("/api/images/**").permitAll()
+                .requestMatchers("/error").permitAll()
                 .requestMatchers("/favicon.ico").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/static/**").permitAll()
                 .requestMatchers("/images/**").permitAll()
                 .requestMatchers("/css/**").permitAll()
                 .requestMatchers("/js/**").permitAll()
-                .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
-                .requestMatchers("/api/user/**").hasAuthority("USER")
+                .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers("/api/user/**").hasAuthority("ROLE_USER")
                 // Allow all owner-related roles to access owner endpoints
-                .requestMatchers("/api/owner/**").hasAnyAuthority("OWNER", "HOTEL_OWNER", "HOSPITAL_OWNER", "SHOP_OWNER")
+                .requestMatchers("/api/owner/**").hasAnyAuthority("ROLE_OWNER", "ROLE_HOTEL_OWNER", "ROLE_HOSPITAL_OWNER", "ROLE_SHOP_OWNER")
                 // Allow authenticated users to access chat endpoints, but allow guest access for basic chat
                 .requestMatchers("/api/chat/guest/**").permitAll()
                 .requestMatchers("/api/chat/**").authenticated()

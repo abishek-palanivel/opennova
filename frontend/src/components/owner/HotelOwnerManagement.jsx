@@ -6,6 +6,7 @@ import OpenNovaLogo from '../common/OpenNovaLogo';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { getImageUrl } from '../../utils/imageUtils';
 import ImageWithFallback from '../common/ImageWithFallback';
+import PaymentVerificationManagement from './PaymentVerificationManagement';
 
 const HotelOwnerManagement = () => {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ const HotelOwnerManagement = () => {
     if (path.includes('/bookings')) return 'bookings';
     if (path.includes('/items')) return 'menus';
     if (path.includes('/reviews')) return 'reviews';
+    if (path.includes('/payments')) return 'payments';
     if (path.includes('/settings')) return 'hours';
     return 'profile';
   };
@@ -64,16 +66,48 @@ const HotelOwnerManagement = () => {
   const fetchEstablishmentData = async () => {
     // Only fetch if user is authenticated as owner
     if (!user || !['OWNER', 'HOTEL_OWNER', 'HOSPITAL_OWNER', 'SHOP_OWNER'].includes(user.role)) {
-      setEstablishment({});
+      setEstablishment({
+        name: '',
+        address: '',
+        contactNumber: '',
+        phoneNumber: '',
+        upiId: '',
+        operatingHours: '',
+        status: 'OPEN',
+        latitude: 0,
+        longitude: 0
+      });
       return;
     }
 
     try {
       const response = await api.get('/api/owner/establishment');
-      setEstablishment(response.data);
+      // Ensure all fields have default values to prevent controlled/uncontrolled input warnings
+      setEstablishment({
+        name: response.data.name || '',
+        address: response.data.address || '',
+        contactNumber: response.data.phoneNumber || response.data.contactNumber || '',
+        phoneNumber: response.data.phoneNumber || response.data.contactNumber || '',
+        upiId: response.data.upiId || '',
+        operatingHours: response.data.operatingHours || '',
+        status: response.data.status || 'OPEN',
+        latitude: response.data.latitude || 0,
+        longitude: response.data.longitude || 0,
+        ...response.data
+      });
     } catch (error) {
       console.debug('Establishment data not available:', error.response?.status);
-      setEstablishment({});
+      setEstablishment({
+        name: '',
+        address: '',
+        contactNumber: '',
+        phoneNumber: '',
+        upiId: '',
+        operatingHours: '',
+        status: 'OPEN',
+        latitude: 0,
+        longitude: 0
+      });
     }
   };
 
@@ -98,7 +132,7 @@ const HotelOwnerManagement = () => {
             imagePath: menu.imagePath,
             imageUrl: menu.imageUrl,
             hasImage: !!(menu.imagePath || menu.imageUrl),
-            fullImageUrl: menu.imagePath ? `http://localhost:9000/api/files/view/${menu.imagePath}` : 'No image'
+            fullImageUrl: menu.imagePath ? getImageUrl(menu.imagePath) : 'No image'
           });
         });
       }
@@ -449,6 +483,7 @@ const HotelOwnerManagement = () => {
         <TabButton id="profile" label="Profile Settings" icon="⚙️" />
         <TabButton id="menus" label="Manage Menus" icon="🍽️" />
         <TabButton id="bookings" label="Bookings" icon="📅" />
+        <TabButton id="payments" label="Payment Verifications" icon="💳" />
         <TabButton id="reviews" label="Reviews" icon="⭐" />
         <TabButton id="hours" label="Operating Hours" icon="🕒" />
       </div>
@@ -813,6 +848,11 @@ const HotelOwnerManagement = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Payment Verifications Tab */}
+      {activeTab === 'payments' && (
+        <PaymentVerificationManagement />
       )}
 
       {activeTab === 'reviews' && (

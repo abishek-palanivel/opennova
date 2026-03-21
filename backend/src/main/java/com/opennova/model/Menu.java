@@ -20,7 +20,7 @@ public class Menu {
     private Establishment establishment;
 
     @NotBlank
-    @Column(name = "name")
+    @Column(name = "item_name")
     private String name;
 
     @Column(name = "description")
@@ -34,7 +34,7 @@ public class Menu {
     @Column(name = "availability_time")
     private String availabilityTime;
 
-    @Column(name = "image_path")
+    @Column(name = "image_url")
     private String imagePath;
 
     @Column(name = "category")
@@ -77,6 +77,14 @@ public class Menu {
 
     public Establishment getEstablishment() { return establishment; }
     public void setEstablishment(Establishment establishment) { this.establishment = establishment; }
+    
+    // Helper method for setting establishment by ID
+    public void setEstablishmentId(Long establishmentId) {
+        if (this.establishment == null) {
+            this.establishment = new Establishment();
+        }
+        this.establishment.setId(establishmentId);
+    }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
