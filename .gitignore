@@ -50,6 +50,7 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 backend/.env
+backend/.env.local
 frontend/.env
 render-environment-variables.txt
 
