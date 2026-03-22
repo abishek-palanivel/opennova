@@ -99,8 +99,9 @@ docs/_build/
 *.backup
 
 # Spring Boot
-application-*.properties
+application-local.properties
 !application.properties
+!application-production.properties
 
 # Maven
 .mvn/timing.properties
