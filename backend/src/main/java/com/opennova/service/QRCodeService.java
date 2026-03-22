@@ -25,7 +25,6 @@ public class QRCodeService {
     public String generateBookingQRCode(Booking booking) {
         try {
             // Create CLEAN, READABLE QR code content that shows meaningful information when scanned
-            // Instead of a URL, create a structured text that any QR reader can display nicely
             String establishmentName = booking.getEstablishment().getName();
             String customerName = booking.getUser() != null ? booking.getUser().getName() : "Guest";
             String visitDate = booking.getVisitingDate();
@@ -33,31 +32,31 @@ public class QRCodeService {
             String amount = String.format("₹%.2f", booking.getPaymentAmount() != null ? booking.getPaymentAmount().doubleValue() : 0.0);
             String bookingRef = booking.getTransactionId();
             
-            // Create clean, readable QR content
+            // Create SIMPLE, SCANNABLE QR content - shorter text for better scanning
             String qrContent = String.format(
-                "🎫 OPENNOVA BOOKING CONFIRMATION\n\n" +
-                "🏢 %s\n" +
-                "👤 %s\n" +
-                "📅 %s at %s\n" +
-                "💰 Amount: %s\n" +
-                "🔖 Booking ID: %d\n" +
-                "📋 Reference: %s\n" +
-                "✅ Status: %s\n\n" +
-                "Show this QR code at the establishment",
+                "OPENNOVA BOOKING\n" +
+                "ID: %d\n" +
+                "Establishment: %s\n" +
+                "Customer: %s\n" +
+                "Date: %s\n" +
+                "Time: %s\n" +
+                "Amount: %s\n" +
+                "Reference: %s\n" +
+                "Status: CONFIRMED\n" +
+                "Show this QR at establishment",
+                booking.getId(),
                 establishmentName,
                 customerName,
                 visitDate,
                 visitTime,
                 amount,
-                booking.getId(),
-                bookingRef,
-                booking.getStatus().toString()
+                bookingRef
             );
             
-            System.out.println("🔄 Generating CLEAN QR code for booking: " + booking.getId());
+            System.out.println("🔄 Generating OPTIMIZED QR code for booking: " + booking.getId());
             System.out.println("📱 QR Content Preview:");
             System.out.println(qrContent);
-            System.out.println("📱 QR data length: " + qrContent.length() + " characters (CLEAN TEXT FORMAT)");
+            System.out.println("📱 QR data length: " + qrContent.length() + " characters (OPTIMIZED FOR SCANNING)");
             
             // Generate QR code image with the clean content
             return generateQRCodeImage(qrContent);
@@ -71,25 +70,24 @@ public class QRCodeService {
     private String generateQRCodeImage(String text) throws WriterException, IOException {
         QRCodeWriter qrCodeWriter = new QRCodeWriter();
         
-        // Optimized settings for faster scanning and smaller size
+        // Optimized settings for better scanning
         Map<com.google.zxing.EncodeHintType, Object> hints = new HashMap<>();
-        hints.put(com.google.zxing.EncodeHintType.ERROR_CORRECTION, com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.M); // Medium error correction for balance
-        hints.put(com.google.zxing.EncodeHintType.MARGIN, 1); // Smaller margin for compact size
+        hints.put(com.google.zxing.EncodeHintType.ERROR_CORRECTION, com.google.zxing.qrcode.decoder.ErrorCorrectionLevel.H); // High error correction for better scanning
+        hints.put(com.google.zxing.EncodeHintType.MARGIN, 2); // Adequate margin for better scanning
         hints.put(com.google.zxing.EncodeHintType.CHARACTER_SET, "UTF-8");
         
-        // Optimized size - smaller for faster generation and scanning
-        BitMatrix bitMatrix = qrCodeWriter.encode(text, BarcodeFormat.QR_CODE, 300, 300, hints);
+        // Larger size for better scanning - 400x400 for crisp display
+        BitMatrix bitMatrix = qrCodeWriter.encode(text, BarcodeFormat.QR_CODE, 400, 400, hints);
         
         BufferedImage qrImage = MatrixToImageWriter.toBufferedImage(bitMatrix);
         
-        // Convert to Base64 with optimized compression
+        // Convert to Base64 with PNG format for best quality
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(qrImage, "PNG", baos);
         byte[] imageBytes = baos.toByteArray();
         
         String base64QR = Base64.getEncoder().encodeToString(imageBytes);
-        System.out.println("✅ Optimized QR code generated (size: " + imageBytes.length + " bytes, " + 
-                          (imageBytes.length < 10000 ? "FAST" : "LARGE") + " scan speed)");
+        System.out.println("✅ HIGH-QUALITY QR code generated (size: " + imageBytes.length + " bytes, OPTIMIZED for scanning)");
         
         return base64QR;
     }

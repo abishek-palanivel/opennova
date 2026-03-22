@@ -147,6 +147,21 @@ const LoginPage = () => {
       });
       
       if (result.success) {
+        // Check if the backend returned a token (auto-login)
+        if (result.token && result.user) {
+          // Auto-login successful - store token and set user
+          localStorage.setItem('token', result.token);
+          
+          // Use the login function to set the user state properly
+          const loginResult = await login(null, null, result.token);
+          if (loginResult.success) {
+            // Navigate to appropriate dashboard
+            navigate(loginResult.redirectPath || '/user/dashboard');
+            return;
+          }
+        }
+        
+        // Fallback to old behavior if no token returned
         setMessage(result.message);
         setIsLogin(true);
         setFormData({ name: '', email: '', password: '', confirmPassword: '' });

@@ -23,9 +23,15 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchUserStats();
-    fetchRecentActivity();
-  }, []);
+    // Only fetch data if user is loaded
+    if (user) {
+      fetchUserStats();
+      fetchRecentActivity();
+    } else {
+      // If no user, stop loading
+      setLoading(false);
+    }
+  }, [user]); // Add user as dependency
 
   const fetchRecentActivity = async () => {
     try {

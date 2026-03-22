@@ -12,6 +12,7 @@ const UserDashboard = () => {
     <UserLayout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/browse" element={<BrowseEstablishments />} />
         <Route path="/bookings" element={<MyBookings />} />
         <Route path="/request" element={<AddEstablishmentRequest />} />

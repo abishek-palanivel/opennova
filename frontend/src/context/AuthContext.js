@@ -134,7 +134,13 @@ export const AuthProvider = ({ children }) => {
         const response = await api.get('/api/auth/profile', {
           headers: { Authorization: `Bearer ${googleToken}` }
         });
-        setUser(response.data);
+        
+        // Wait for state update to complete
+        await new Promise(resolve => {
+          setUser(response.data);
+          // Use setTimeout to ensure state update is processed
+          setTimeout(resolve, 50);
+        });
         
         const redirectPath = getPortalRedirectPath(response.data);
         return { 
@@ -167,7 +173,13 @@ export const AuthProvider = ({ children }) => {
       }
       
       localStorage.setItem('token', token);
-      setUser(userData);
+      
+      // Wait for state update to complete
+      await new Promise(resolve => {
+        setUser(userData);
+        // Use setTimeout to ensure state update is processed
+        setTimeout(resolve, 50);
+      });
       
       // Determine portal redirection based on user role and establishment type
       const redirectPath = getPortalRedirectPath(userData);

@@ -102,7 +102,7 @@ const GoogleOAuthButton = ({ onSuccess, onError, buttonText = "Continue with Goo
     try {
       setLoading(false);
       
-      // Use the login function with Google token
+      // Use the login function with Google token and wait for completion
       const result = await login(null, null, token);
       
       if (result.success) {
@@ -110,8 +110,10 @@ const GoogleOAuthButton = ({ onSuccess, onError, buttonText = "Continue with Goo
           onSuccess(result.user);
         }
         
-        // Navigate to the appropriate dashboard
-        window.location.href = result.redirectPath || '/user/dashboard';
+        // Use window.location.href for now but add a small delay to ensure state is set
+        setTimeout(() => {
+          window.location.href = result.redirectPath || '/user/dashboard';
+        }, 100);
       } else {
         // Check if user needs to signup
         if (result.needsSignup && result.googleUserInfo) {

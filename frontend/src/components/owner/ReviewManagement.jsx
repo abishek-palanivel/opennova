@@ -7,7 +7,7 @@ const ReviewManagement = () => {
   const [reviews, setReviews] = useState([]);
   const [pendingReviews, setPendingReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState('all');
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [reviewToReject, setReviewToReject] = useState(null);
@@ -124,16 +124,6 @@ const ReviewManagement = () => {
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
             <button
-              onClick={() => setActiveTab('pending')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'pending'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Pending Reviews ({pendingReviews.length})
-            </button>
-            <button
               onClick={() => setActiveTab('all')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'all'
@@ -147,63 +137,8 @@ const ReviewManagement = () => {
         </div>
       </div>
 
-      {/* Pending Reviews Tab */}
-      {activeTab === 'pending' && (
-        <div className="space-y-4">
-          {pendingReviews.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No pending reviews</p>
-              <p className="text-gray-400">All reviews have been processed!</p>
-            </div>
-          ) : (
-            pendingReviews.map((review) => (
-              <div key={review.id} className="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-400">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800">
-                      {review.user?.name || 'Anonymous User'}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {formatDate(review.createdAt)}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {renderStars(review.rating)}
-                    {getStatusBadge(review.status)}
-                  </div>
-                </div>
-
-                {review.comment && (
-                  <div className="mb-4">
-                    <p className="text-gray-700 bg-gray-50 p-3 rounded-md">
-                      "{review.comment}"
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => handleRejectClick(review)}
-                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    onClick={() => handleApprove(review.id)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                  >
-                    Approve
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
       {/* All Reviews Tab */}
-      {activeTab === 'all' && (
-        <div className="space-y-4">
+      <div className="space-y-4">
           {reviews.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg">No reviews yet</p>
@@ -272,8 +207,7 @@ const ReviewManagement = () => {
               </div>
             ))
           )}
-        </div>
-      )}
+      </div>
 
       {/* Rejection Modal */}
       {showRejectModal && (

@@ -204,8 +204,26 @@ public class AuthController {
 
             User user = authService.registerUser(registerRequest);
             
-            Map<String, String> response = new HashMap<>();
+            // Auto-login the user after successful registration
+            UserDetails userDetails = customUserDetailsService.loadUserByUsername(user.getEmail());
+            
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("role", user.getRole().name());
+            claims.put("userId", user.getId());
+            
+            String token = jwtUtil.generateToken(userDetails, claims);
+            
+            Map<String, Object> response = new HashMap<>();
             response.put("message", "User registered successfully");
+            response.put("success", true);
+            response.put("token", token);
+            response.put("user", Map.of(
+                "id", user.getId(),
+                "name", user.getName(),
+                "email", user.getEmail(),
+                "role", user.getRole().toString()
+            ));
+            
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -546,7 +564,11 @@ public class AuthController {
             }
             
             // Generate JWT token
-            String token = jwtUtil.generateToken(user);
+            UserDetails userDetails = customUserDetailsService.loadUserByUsername(user.getEmail());
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("role", user.getRole().name());
+            claims.put("userId", user.getId());
+            String token = jwtUtil.generateToken(userDetails, claims);
             
             // Redirect to frontend with token (URL encode the parameters)
             String redirectUrl = String.format("http://localhost:3000/auth/google/success?token=%s&user=%s&role=%s", 
@@ -609,7 +631,11 @@ public class AuthController {
             }
             
             // Generate JWT token
-            String token = jwtUtil.generateToken(user);
+            UserDetails userDetails = customUserDetailsService.loadUserByUsername(user.getEmail());
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("role", user.getRole().name());
+            claims.put("userId", user.getId());
+            String token = jwtUtil.generateToken(userDetails, claims);
             
             // Return authentication response
             AuthResponse.UserResponse userResponse = new AuthResponse.UserResponse(

@@ -190,21 +190,67 @@ public class OwnerController {
             User user = userService.findByEmail(email);
             
             if (user == null) {
-                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "User not found"));
             }
 
             List<Establishment> establishments = establishmentService.findByOwnerId(user.getId());
             
             if (establishments.isEmpty()) {
-                return ResponseEntity.ok(new ArrayList<>());
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", true);
+                response.put("bookings", new ArrayList<>());
+                response.put("message", "No establishment found");
+                return ResponseEntity.ok(response);
             }
 
             List<Booking> bookings = bookingService.findByEstablishmentId(establishments.get(0).getId());
-            return ResponseEntity.ok(bookings);
+            
+            // Convert bookings to proper format for frontend
+            List<Map<String, Object>> bookingList = new ArrayList<>();
+            for (Booking booking : bookings) {
+                Map<String, Object> bookingData = new HashMap<>();
+                bookingData.put("id", booking.getId());
+                bookingData.put("customerName", booking.getUser() != null ? booking.getUser().getName() : "Guest");
+                bookingData.put("customerEmail", booking.getUserEmail());
+                bookingData.put("visitingDate", booking.getVisitingDate());
+                bookingData.put("visitingTime", booking.getVisitingTime());
+                bookingData.put("amount", booking.getAmount() != null ? booking.getAmount().doubleValue() : 0.0);
+                bookingData.put("paymentAmount", booking.getPaymentAmount() != null ? booking.getPaymentAmount().doubleValue() : 
+                    (booking.getAmount() != null && (booking.getStatus() == BookingStatus.CONFIRMED || booking.getStatus() == BookingStatus.COMPLETED) ? 
+                     booking.getAmount().doubleValue() * 0.7 : 0.0));
+                bookingData.put("totalAmount", booking.getAmount() != null ? booking.getAmount().doubleValue() : 0.0);
+                bookingData.put("paidAmount", booking.getPaymentAmount() != null ? booking.getPaymentAmount().doubleValue() : 
+                    (booking.getAmount() != null && (booking.getStatus() == BookingStatus.CONFIRMED || booking.getStatus() == BookingStatus.COMPLETED) ? 
+                     booking.getAmount().doubleValue() * 0.7 : 0.0));
+                bookingData.put("status", booking.getStatus().toString());
+                bookingData.put("paymentStatus", booking.getPaymentStatus() != null ? booking.getPaymentStatus().toString() : "PENDING");
+                bookingData.put("transactionId", booking.getTransactionId());
+                bookingData.put("qrCode", booking.getQrCode());
+                bookingData.put("selectedItems", booking.getSelectedItems());
+                bookingData.put("createdAt", booking.getCreatedAt());
+                bookingData.put("confirmedAt", booking.getConfirmedAt());
+                bookingData.put("cancelledAt", booking.getCancelledAt());
+                bookingData.put("cancellationReason", booking.getCancellationReason());
+                bookingData.put("refundStatus", booking.getRefundStatus() != null ? booking.getRefundStatus().toString() : "NOT_APPLICABLE");
+                
+                bookingList.add(bookingData);
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("bookings", bookingList);
+            response.put("message", "Bookings fetched successfully");
+            
+            System.out.println("✅ Returning " + bookingList.size() + " formatted bookings to frontend");
+            return ResponseEntity.ok(response);
             
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch bookings: " + e.getMessage()));
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Failed to fetch bookings: " + e.getMessage());
+            response.put("bookings", new ArrayList<>());
+            return ResponseEntity.ok(response);
         }
     }
 
@@ -236,12 +282,86 @@ public class OwnerController {
     @GetMapping("/visit-stats")
     public ResponseEntity<?> getVisitStats(Authentication authentication) {
         try {
+            String email = authentication.getName();
+            User user = userService.findByEmail(email);
+            
+            if (user == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+            }
+
+            List<Establishment> establishments = establishmentService.findByOwnerId(user.getId());
+            
+            if (establishments.isEmpty()) {
+                // Return zeros for owners without establishments
+                Map<String, Object> stats = new HashMap<>();
+                stats.put("totalBookings", 0);
+                stats.put("confirmedBookings", 0);
+                stats.put("completedVisits", 0);
+                stats.put("pendingVisits", 0);
+                stats.put("totalRevenue", 0.0);
+                stats.put("visitCompletionRate", 0.0);
+                return ResponseEntity.ok(stats);
+            }
+
+            Establishment establishment = establishments.get(0);
+            
+            // Get all bookings for this establishment
+            List<Booking> allBookings = bookingRepository.findByEstablishmentIdOrderByCreatedAtDesc(establishment.getId());
+            
+            // Calculate statistics
+            long totalBookings = allBookings.size();
+            
+            // Count confirmed bookings (paid orders)
+            long confirmedBookings = allBookings.stream()
+                .filter(b -> (b.getPaymentStatus() == com.opennova.model.PaymentStatus.PAID) ||
+                           (b.getStatus() == com.opennova.model.BookingStatus.CONFIRMED) ||
+                           (b.getStatus() == com.opennova.model.BookingStatus.COMPLETED))
+                .count();
+            
+            // Count completed visits
+            long completedVisits = allBookings.stream()
+                .filter(b -> b.getStatus() == com.opennova.model.BookingStatus.COMPLETED)
+                .count();
+            
+            // Count pending visits
+            long pendingVisits = allBookings.stream()
+                .filter(b -> b.getStatus() == com.opennova.model.BookingStatus.CONFIRMED || 
+                           b.getStatus() == com.opennova.model.BookingStatus.PENDING)
+                .count();
+            
+            // Calculate total revenue from payment amounts
+            double totalRevenue = allBookings.stream()
+                .filter(b -> (b.getPaymentStatus() == com.opennova.model.PaymentStatus.PAID) ||
+                           (b.getStatus() == com.opennova.model.BookingStatus.CONFIRMED) ||
+                           (b.getStatus() == com.opennova.model.BookingStatus.COMPLETED))
+                .mapToDouble(b -> {
+                    if (b.getPaymentAmount() != null && b.getPaymentAmount().doubleValue() > 0) {
+                        return b.getPaymentAmount().doubleValue();
+                    } else if (b.getAmount() != null && b.getAmount().doubleValue() > 0) {
+                        if (b.getStatus() == com.opennova.model.BookingStatus.CONFIRMED || 
+                            b.getStatus() == com.opennova.model.BookingStatus.COMPLETED) {
+                            return b.getAmount().doubleValue() * 0.7; // 70% payment
+                        }
+                        return b.getAmount().doubleValue();
+                    }
+                    return 0.0;
+                })
+                .sum();
+            
+            // Calculate visit completion rate
+            double visitCompletionRate = totalBookings > 0 ? 
+                (double) completedVisits / totalBookings * 100.0 : 0.0;
+            
             Map<String, Object> stats = new HashMap<>();
-            stats.put("totalVisits", 150);
-            stats.put("todayVisits", 12);
-            stats.put("weeklyVisits", 85);
-            stats.put("monthlyVisits", 320);
+            stats.put("totalBookings", totalBookings);
+            stats.put("confirmedBookings", confirmedBookings);
+            stats.put("completedVisits", completedVisits);
+            stats.put("pendingVisits", pendingVisits);
+            stats.put("totalRevenue", Math.round(totalRevenue * 100.0) / 100.0);
+            stats.put("visitCompletionRate", Math.round(visitCompletionRate * 10.0) / 10.0);
+            
             return ResponseEntity.ok(stats);
+            
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch stats: " + e.getMessage()));
@@ -281,6 +401,15 @@ public class OwnerController {
             
             System.out.println("📊 Found " + allBookings.size() + " total bookings for establishment");
             
+            // Debug: Print first few bookings
+            allBookings.stream().limit(3).forEach(b -> 
+                System.out.println("📊 Sample booking: ID=" + b.getId() + 
+                    ", Status=" + b.getStatus() + 
+                    ", PaymentStatus=" + b.getPaymentStatus() + 
+                    ", TotalAmount=" + b.getAmount() + 
+                    ", PaidAmount=" + b.getPaymentAmount())
+            );
+            
             // Calculate statistics
             long totalBookings = allBookings.size();
             
@@ -304,9 +433,32 @@ public class OwnerController {
             
             // Calculate total revenue from payment amounts
             double totalRevenue = allBookings.stream()
-                .filter(b -> b.getPaymentAmount() != null && b.getPaymentAmount().doubleValue() > 0)
-                .peek(b -> System.out.println("📊 Revenue booking: ID=" + b.getId() + ", Amount=" + b.getPaymentAmount()))
-                .mapToDouble(b -> b.getPaymentAmount().doubleValue())
+                .filter(b -> {
+                    // Include revenue from paid bookings
+                    boolean isPaidStatus = (b.getPaymentStatus() == com.opennova.model.PaymentStatus.PAID) ||
+                                         (b.getStatus() == com.opennova.model.BookingStatus.CONFIRMED) ||
+                                         (b.getStatus() == com.opennova.model.BookingStatus.COMPLETED);
+                    return isPaidStatus;
+                })
+                .peek(b -> System.out.println("📊 Revenue booking: ID=" + b.getId() + 
+                    ", PaymentAmount=" + b.getPaymentAmount() + 
+                    ", TotalAmount=" + b.getAmount() + 
+                    ", Status=" + b.getStatus() + 
+                    ", PaymentStatus=" + b.getPaymentStatus()))
+                .mapToDouble(b -> {
+                    // Use payment amount if available, otherwise use total amount
+                    if (b.getPaymentAmount() != null && b.getPaymentAmount().doubleValue() > 0) {
+                        return b.getPaymentAmount().doubleValue();
+                    } else if (b.getAmount() != null && b.getAmount().doubleValue() > 0) {
+                        // For confirmed bookings without payment amount, calculate 70% of total
+                        if (b.getStatus() == com.opennova.model.BookingStatus.CONFIRMED || 
+                            b.getStatus() == com.opennova.model.BookingStatus.COMPLETED) {
+                            return b.getAmount().doubleValue() * 0.7; // 70% payment
+                        }
+                        return b.getAmount().doubleValue();
+                    }
+                    return 0.0;
+                })
                 .sum();
             
             // Today's bookings
@@ -339,6 +491,10 @@ public class OwnerController {
             stats.put("averageRating", Math.round(averageRating * 10.0) / 10.0); // Round to 1 decimal place
             
             System.out.println("📊 Final dashboard stats for " + establishment.getName() + ": " + stats);
+            
+            // Add establishment info for debugging
+            stats.put("establishmentId", establishment.getId());
+            stats.put("establishmentName", establishment.getName());
             
             return ResponseEntity.ok(stats);
             
@@ -393,8 +549,14 @@ public class OwnerController {
                 orderData.put("customerEmail", order.getUserEmail());
                 orderData.put("visitingDate", order.getVisitingDate());
                 orderData.put("visitingTime", order.getVisitingTime());
-                orderData.put("totalAmount", order.getAmount());
-                orderData.put("paidAmount", order.getPaymentAmount());
+                orderData.put("amount", order.getAmount() != null ? order.getAmount().doubleValue() : 0.0);
+                orderData.put("paymentAmount", order.getPaymentAmount() != null ? order.getPaymentAmount().doubleValue() : 
+                    (order.getAmount() != null && (order.getStatus() == BookingStatus.CONFIRMED || order.getStatus() == BookingStatus.COMPLETED) ? 
+                     order.getAmount().doubleValue() * 0.7 : 0.0));
+                orderData.put("totalAmount", order.getAmount() != null ? order.getAmount().doubleValue() : 0.0);
+                orderData.put("paidAmount", order.getPaymentAmount() != null ? order.getPaymentAmount().doubleValue() : 
+                    (order.getAmount() != null && (order.getStatus() == BookingStatus.CONFIRMED || order.getStatus() == BookingStatus.COMPLETED) ? 
+                     order.getAmount().doubleValue() * 0.7 : 0.0));
                 orderData.put("status", order.getStatus().toString());
                 orderData.put("paymentStatus", order.getPaymentStatus().toString());
                 orderData.put("transactionId", order.getTransactionId());
@@ -569,6 +731,122 @@ public class OwnerController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch doctors: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/bookings/{bookingId}/confirm")
+    public ResponseEntity<?> confirmBooking(@PathVariable Long bookingId, Authentication authentication) {
+        try {
+            String email = authentication.getName();
+            User user = userService.findByEmail(email);
+            
+            if (user == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "User not found"));
+            }
+
+            List<Establishment> establishments = establishmentService.findByOwnerId(user.getId());
+            
+            if (establishments.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "No establishment found"));
+            }
+
+            Establishment establishment = establishments.get(0);
+            
+            // Confirm the booking
+            Booking confirmedBooking = bookingService.confirmBooking(bookingId, establishment.getId());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Booking confirmed successfully");
+            response.put("booking", confirmedBooking);
+            response.put("qrCode", confirmedBooking.getQrCode());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Failed to confirm booking: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/bookings/{bookingId}/reject")
+    public ResponseEntity<?> rejectBooking(@PathVariable Long bookingId, @RequestBody Map<String, String> request, Authentication authentication) {
+        try {
+            String email = authentication.getName();
+            User user = userService.findByEmail(email);
+            
+            if (user == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "User not found"));
+            }
+
+            List<Establishment> establishments = establishmentService.findByOwnerId(user.getId());
+            
+            if (establishments.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "No establishment found"));
+            }
+
+            Establishment establishment = establishments.get(0);
+            String reason = request.get("reason");
+            
+            if (reason == null || reason.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Rejection reason is required"));
+            }
+            
+            // Cancel the booking with reason
+            Booking cancelledBooking = bookingService.ownerCancelBooking(bookingId, user.getId(), reason);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Booking rejected successfully");
+            response.put("booking", cancelledBooking);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Failed to reject booking: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/bookings/{bookingId}")
+    public ResponseEntity<?> deleteBooking(@PathVariable Long bookingId, Authentication authentication) {
+        try {
+            System.out.println("🗑️ Delete booking request received for ID: " + bookingId);
+            
+            String email = authentication.getName();
+            System.out.println("🗑️ User email: " + email);
+            
+            User user = userService.findByEmailSafe(email);
+            
+            if (user == null) {
+                System.err.println("❌ User not found: " + email);
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "User not found"));
+            }
+
+            List<Establishment> establishments = establishmentService.findByOwnerId(user.getId());
+            
+            if (establishments.isEmpty()) {
+                System.err.println("❌ No establishment found for user: " + email);
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "No establishment found"));
+            }
+
+            Establishment establishment = establishments.get(0);
+            System.out.println("🗑️ Found establishment: " + establishment.getName() + " (ID: " + establishment.getId() + ")");
+            
+            // Delete the booking
+            bookingService.deleteBooking(bookingId, establishment.getId());
+            System.out.println("✅ Booking deleted successfully: " + bookingId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Booking deleted successfully");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error deleting booking " + bookingId + ": " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Failed to delete booking: " + e.getMessage()));
         }
     }
 

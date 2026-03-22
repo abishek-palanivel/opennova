@@ -57,6 +57,9 @@ public class PublicController {
 
     @Autowired
     private EstablishmentRepository establishmentRepository;
+    
+    @Autowired
+    private com.opennova.service.ReviewService reviewService;
 
     /**
      * Serve uploaded images publicly
@@ -113,6 +116,33 @@ public class PublicController {
             health.put("error", e.getMessage());
             health.put("timestamp", java.time.LocalDateTime.now());
             return ResponseEntity.status(500).body(health);
+        }
+    }
+
+    // Public test endpoint for debugging analytics (no authentication required)
+    @GetMapping("/admin-stats")
+    public ResponseEntity<?> getPublicAdminStats() {
+        try {
+            System.out.println("📊 PublicController: Providing public admin stats for debugging...");
+            Map<String, Object> stats = new HashMap<>();
+            
+            // Get real data without authentication
+            stats.put("totalUsers", userService.getTotalUsers());
+            stats.put("totalEstablishments", establishmentService.getTotalEstablishments());
+            stats.put("totalBookings", bookingService.getTotalBookings());
+            stats.put("totalReviews", reviewService.getTotalReviews());
+            stats.put("totalRevenue", bookingService.getTotalRevenue());
+            stats.put("monthlyRevenue", bookingService.getMonthlyRevenue());
+            stats.put("activeEstablishments", establishmentService.getActiveEstablishments());
+            stats.put("confirmedBookings", bookingService.getConfirmedBookingsCount());
+            stats.put("pendingBookings", bookingService.getPendingBookingsCount());
+            
+            System.out.println("📊 PublicController: Public admin stats provided: " + stats);
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            System.err.println("❌ PublicController: Failed to fetch public admin stats: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch admin stats: " + e.getMessage()));
         }
     }
 

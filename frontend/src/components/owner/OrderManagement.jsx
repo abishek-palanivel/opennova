@@ -21,7 +21,16 @@ const OrderManagement = () => {
   const fetchOrders = async () => {
     try {
       const response = await api.get('/api/owner/orders');
-      setOrders(response.data.orders || []);
+      console.log('📦 Orders response received:', response.data);
+      const ordersData = response.data.orders || [];
+      console.log('📦 Processing', ordersData.length, 'orders');
+      
+      // Debug first order to see data structure
+      if (ordersData.length > 0) {
+        console.log('📦 Sample order data:', ordersData[0]);
+      }
+      
+      setOrders(ordersData);
     } catch (error) {
       console.error('Error fetching orders:', error);
       
@@ -116,6 +125,41 @@ const OrderManagement = () => {
     
     if (reason !== null) { // User didn't click Cancel
       cancelBooking(order.id, reason);
+    }
+  };
+
+  const deleteOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to permanently delete this order? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      console.log('🗑️ Attempting to delete order:', orderId);
+      const response = await api.delete(`/api/owner/bookings/${orderId}`);
+      console.log('🗑️ Delete response:', response.data);
+      
+      if (response.data.success) {
+        alert('Order deleted successfully.');
+        fetchOrders(); // Refresh the orders list
+        fetchStats(); // Refresh statistics
+      } else {
+        console.error('❌ Delete failed:', response.data.message);
+        alert('Failed to delete order: ' + (response.data.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('❌ Error deleting order:', error);
+      console.error('❌ Error response:', error.response?.data);
+      
+      let errorMessage = 'Unknown error occurred';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert('Failed to delete order: ' + errorMessage);
     }
   };
 
@@ -443,6 +487,13 @@ const OrderManagement = () => {
                           👁 View Details
                         </button>
                         
+                        <button
+                          onClick={() => deleteOrder(order.id)}
+                          className="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-xs"
+                        >
+                          🗑️ Delete
+                        </button>
+                        
                         {order.status === 'COMPLETED' && (
                           <span className="text-green-600 font-medium text-xs">✓ Completed</span>
                         )}
@@ -631,6 +682,16 @@ const OrderManagement = () => {
                     ✕ Cancel Booking
                   </button>
                 )}
+                
+                <button
+                  onClick={() => {
+                    deleteOrder(selectedOrder.id);
+                    closeDetailsModal();
+                  }}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  🗑️ Delete
+                </button>
                 
                 <button
                   onClick={closeDetailsModal}

@@ -758,12 +758,12 @@ public class BookingService {
 
     public BigDecimal getMonthlyRevenue() {
         // Mock implementation - replace with actual monthly calculation
-        return getTotalRevenue().divide(BigDecimal.valueOf(12));
+        return getTotalRevenue().divide(BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP);
     }
 
     public BigDecimal getDailyRevenue() {
         // Mock implementation - replace with actual daily calculation
-        return getTotalRevenue().divide(BigDecimal.valueOf(365));
+        return getTotalRevenue().divide(BigDecimal.valueOf(365), 2, java.math.RoundingMode.HALF_UP);
     }
 
     public double getRevenueGrowthRate() {
@@ -778,7 +778,7 @@ public class BookingService {
             Map<String, Object> monthData = new HashMap<>();
             monthData.put("month", "Month " + (i + 1));
             monthData.put("bookings", getTotalBookings() / (12 - i));
-            monthData.put("revenue", getTotalRevenue().divide(BigDecimal.valueOf(12 - i)));
+            monthData.put("revenue", getTotalRevenue().divide(BigDecimal.valueOf(12 - i), 2, java.math.RoundingMode.HALF_UP));
             trends.add(monthData);
         }
         return trends;

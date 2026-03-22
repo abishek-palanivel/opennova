@@ -87,6 +87,43 @@ npm start
 - **Deployment**: Vercel (Frontend), Fly.io (Backend), Neon.tech (Database)
 - **Development**: Hot reload, CORS enabled
 
+## 🌐 Live Deployment - FREE & 24/7 Online
+
+Deploy your OpenNova project for free with these platforms:
+
+### 🚂 Railway Deployment (Recommended)
+1. **Push to GitHub**: `git add . && git commit -m "Deploy" && git push`
+2. **Go to [Railway](https://railway.app)** and sign up with GitHub
+3. **New Project** → **Deploy from GitHub repo** → Select your repo
+4. **Add PostgreSQL** service to your project
+5. **Set Environment Variables**:
+   ```
+   JWT_SECRET=OpenNova2024SecretKey123456789
+   EMAIL_USERNAME=your-email@gmail.com
+   EMAIL_PASSWORD=your-gmail-app-password
+   ```
+6. **Deploy** - Railway auto-builds and deploys using `railway.json`!
+7. **Update Frontend URL**: Copy your Railway backend URL and update `frontend/.env.production`
+
+### 🔧 Environment Variables Needed
+```bash
+# Backend (.env or platform settings)
+DATABASE_URL=postgresql://user:pass@host:port/dbname
+JWT_SECRET=your-32-character-secret-key-here
+EMAIL_USERNAME=your-email@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password
+CORS_ORIGINS=https://your-frontend-domain.com
+
+# Frontend (.env.production)
+REACT_APP_API_URL=https://your-backend-domain.railway.app
+```
+
+### 📱 Mobile-Friendly URLs
+After deployment, your app will be accessible on:
+- **Desktop**: Full web interface
+- **Mobile**: Responsive design works perfectly
+- **PWA**: Can be installed as a mobile app
+
 ## 🌐 Live Deployment
 
 Deploy to the internet for FREE using:
@@ -96,12 +133,13 @@ Deploy to the internet for FREE using:
 
 ### Quick Deploy
 ```bash
-# Windows
-deploy.bat
+# 1. Push to GitHub
+git add .
+git commit -m "Ready for deployment"
+git push origin main
 
-# Linux/Mac
-./deploy-backend.sh
-./deploy-frontend.sh
+# 2. Deploy on Railway (recommended)
+# Go to railway.app → Sign up → Deploy from GitHub → Add PostgreSQL
 ```
 
 📖 **Full deployment guide**: See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)

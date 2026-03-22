@@ -14,8 +14,30 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchOwnerStats();
-  }, []);
+    // Only fetch data if user is loaded
+    if (user) {
+      fetchOwnerStats();
+    } else {
+      // If no user, stop loading
+      setLoading(false);
+    }
+    
+    // Listen for booking data changes from payment verification actions
+    const handleBookingDataChange = (event) => {
+      console.log('📡 Dashboard received booking data change event:', event.detail);
+      // Refresh dashboard stats when payment verification is approved/rejected
+      if (user) {
+        fetchOwnerStats();
+      }
+    };
+    
+    window.addEventListener('bookingDataChanged', handleBookingDataChange);
+    
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('bookingDataChanged', handleBookingDataChange);
+    };
+  }, [user]); // Add user as dependency
 
   const handleExportBookings = async () => {
     try {
@@ -58,17 +80,22 @@ const Dashboard = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setStats({
-          totalBookings: data.totalBookings || 0,
-          todayBookings: data.todayBookings || 0,
-          totalRevenue: data.totalRevenue || 0,
-          averageRating: data.averageRating || 0,
-          paidOrders: data.paidOrders || 0,
-          pendingVisits: data.pendingVisits || 0
-        });
-        console.log('📊 Dashboard stats loaded:', data);
+        console.log('📊 Dashboard stats received:', data);
+        
+        // Ensure all values are numbers and not null/undefined
+        const cleanStats = {
+          totalBookings: Number(data.totalBookings) || 0,
+          todayBookings: Number(data.todayBookings) || 0,
+          totalRevenue: Number(data.totalRevenue) || 0,
+          averageRating: Number(data.averageRating) || 0,
+          paidOrders: Number(data.paidOrders) || 0,
+          pendingVisits: Number(data.pendingVisits) || 0
+        };
+        
+        setStats(cleanStats);
+        console.log('📊 Dashboard stats processed:', cleanStats);
       } else {
-        console.error('Failed to fetch dashboard stats:', response.status);
+        console.error('Failed to fetch dashboard stats:', response.status, response.statusText);
         // Keep default values on error
       }
 
@@ -123,6 +150,13 @@ const Dashboard = () => {
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-4">
         <button
+          onClick={fetchOwnerStats}
+          className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors flex items-center"
+        >
+          <span className="mr-2">🔄</span>
+          Refresh Stats
+        </button>
+        <button
           onClick={handleExportBookings}
           className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center"
         >
@@ -147,7 +181,7 @@ const Dashboard = () => {
               <p className="text-3xl font-bold text-gray-900">{stats.totalBookings}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
-              <span className="text-2xl">�</span>
+              <span className="text-2xl">📊</span>
             </div>
           </div>
         </div>
@@ -159,7 +193,7 @@ const Dashboard = () => {
               <p className="text-3xl font-bold text-gray-900">{stats.paidOrders || 0}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
-              <span className="text-2xl">�</span>
+              <span className="text-2xl">💰</span>
             </div>
           </div>
         </div>
@@ -183,7 +217,7 @@ const Dashboard = () => {
               <p className="text-3xl font-bold text-gray-900">₹{stats.totalRevenue.toLocaleString()}</p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
-              <span className="text-2xl">💎</span>
+              <span className="text-2xl">💰</span>
             </div>
           </div>
         </div>

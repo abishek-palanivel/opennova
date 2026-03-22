@@ -208,23 +208,70 @@ const EstablishmentSettings = () => {
   };
 
   const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocationData(prev => ({
-            ...prev,
-            latitude: position.coords.latitude.toString(),
-            longitude: position.coords.longitude.toString()
-          }));
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          alert('Unable to get your current location. Please enter coordinates manually.');
-        }
-      );
-    } else {
+    if (!navigator.geolocation) {
       alert('Geolocation is not supported by this browser.');
+      return;
     }
+
+    // Show loading state
+    const button = document.querySelector('[data-location-btn]');
+    if (button) {
+      button.textContent = 'Getting location...';
+      button.disabled = true;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude.toFixed(6);
+        const lng = position.coords.longitude.toFixed(6);
+        
+        setLocationData(prev => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng
+        }));
+        
+        // Reset button
+        if (button) {
+          button.textContent = '📍 Use Current Location';
+          button.disabled = false;
+        }
+        
+        alert('Location coordinates filled successfully!');
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        let errorMessage = 'Unable to get your current location. ';
+        
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Please allow location access and try again.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information is unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage += 'Location request timed out.';
+            break;
+          default:
+            errorMessage += 'Please enter coordinates manually.';
+            break;
+        }
+        
+        alert(errorMessage);
+        
+        // Reset button
+        if (button) {
+          button.textContent = '📍 Use Current Location';
+          button.disabled = false;
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
   };
 
   if (loading) {
@@ -620,6 +667,7 @@ const EstablishmentSettings = () => {
                 <button
                   type="button"
                   onClick={getCurrentLocation}
+                  data-location-btn
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   📍 Use Current Location

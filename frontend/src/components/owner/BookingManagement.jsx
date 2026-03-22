@@ -15,6 +15,20 @@ const BookingManagement = () => {
 
   useEffect(() => {
     fetchBookings();
+    
+    // Listen for booking data changes from payment verification actions
+    const handleBookingDataChange = (event) => {
+      console.log('📡 Received booking data change event:', event.detail);
+      // Refresh bookings when payment verification is approved/rejected
+      fetchBookings();
+    };
+    
+    window.addEventListener('bookingDataChanged', handleBookingDataChange);
+    
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('bookingDataChanged', handleBookingDataChange);
+    };
   }, []);
 
   const fetchBookings = async () => {
@@ -479,18 +493,47 @@ const BookingManagement = () => {
                 <img
                   src={`data:image/png;base64,${selectedBooking.qrCode}`}
                   alt="Booking QR Code"
-                  className="w-48 h-48 mx-auto"
+                  className="w-64 h-64 mx-auto"
+                  style={{ imageRendering: 'pixelated' }}
+                  onError={(e) => {
+                    console.error('❌ QR Code display error:', e);
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'block';
+                  }}
                 />
+                <div style={{ display: 'none' }} className="text-red-500 text-center">
+                  <p>QR Code could not be displayed</p>
+                  <p className="text-sm">Booking ID: {selectedBooking.id}</p>
+                </div>
               </div>
-              <p className="text-gray-600 mb-6">
-                Customer: {selectedBooking.customerName}
-              </p>
-              <button
-                onClick={() => setShowQRModal(false)}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Close
-              </button>
+              <div className="mb-4">
+                <p className="text-gray-600 mb-2">
+                  Customer: {selectedBooking.customerName}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Show this QR code at the establishment for verification
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    // Download QR code as image
+                    const link = document.createElement('a');
+                    link.href = `data:image/png;base64,${selectedBooking.qrCode}`;
+                    link.download = `booking-${selectedBooking.id}-qr.png`;
+                    link.click();
+                  }}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                >
+                  📱 Download QR
+                </button>
+                <button
+                  onClick={() => setShowQRModal(false)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

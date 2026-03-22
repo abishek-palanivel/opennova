@@ -165,10 +165,28 @@ const AdminDashboard = () => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await api.get('/api/admin/stats');
+      console.log('📊 Fetching admin dashboard stats...');
+      
+      // Try the main endpoint first, fallback to mock if it fails
+      let response;
+      try {
+        response = await api.get('/api/admin/stats');
+        console.log('✅ Dashboard stats received from main endpoint:', response.data);
+      } catch (mainError) {
+        console.warn('⚠️ Main stats endpoint failed, trying mock endpoint:', mainError.message);
+        try {
+          response = await api.get('/api/admin/stats/mock');
+          console.log('✅ Dashboard stats received from mock endpoint:', response.data);
+        } catch (mockError) {
+          console.error('❌ Both main and mock endpoints failed:', mockError.message);
+          throw mockError;
+        }
+      }
+      
       setStats(response.data);
     } catch (error) {
-      console.error('Failed to fetch dashboard stats:', error);
+      console.error('❌ Failed to fetch dashboard stats:', error);
+      
       // Don't logout on 401 for admin endpoints, might be permission issue
       if (error.response?.status === 401 && !error.response?.data?.message?.includes('Access denied')) {
         const hasToken = localStorage.getItem('token');
@@ -177,8 +195,21 @@ const AdminDashboard = () => {
           return;
         }
       }
-      // Use mock data if API fails
-      setStats(mockStats);
+      
+      // Use fallback data if API fails
+      console.log('📊 Using fallback stats data due to API error');
+      setStats({
+        totalEstablishments: 0,
+        pendingRequests: 0,
+        totalReviews: 0,
+        totalBookings: 0,
+        totalUsers: 0,
+        activeUsers: 0,
+        activeEstablishments: 0,
+        pendingReviews: 0,
+        totalRevenue: 0,
+        monthlyRevenue: 0
+      });
     }
   };
 

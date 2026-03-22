@@ -39,6 +39,11 @@ const PaymentVerificationManagement = () => {
       setVerifications(prev => prev.filter(v => v.id !== verificationId));
       setSelectedVerification(null);
       
+      // Notify other components to refresh their data
+      window.dispatchEvent(new CustomEvent('bookingDataChanged', { 
+        detail: { action: 'approved', verificationId } 
+      }));
+      
     } catch (error) {
       console.error('❌ Failed to approve payment verification:', error);
       alert('Failed to approve payment verification: ' + (error.response?.data?.message || error.message));
@@ -65,6 +70,11 @@ const PaymentVerificationManagement = () => {
       // Remove from local state instead of refreshing
       setVerifications(prev => prev.filter(v => v.id !== verificationId));
       setSelectedVerification(null);
+      
+      // Notify other components to refresh their data
+      window.dispatchEvent(new CustomEvent('bookingDataChanged', { 
+        detail: { action: 'rejected', verificationId } 
+      }));
       
     } catch (error) {
       console.error('❌ Failed to reject payment verification:', error);

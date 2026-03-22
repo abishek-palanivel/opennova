@@ -3,6 +3,7 @@ package com.opennova.service;
 import com.opennova.model.PaymentVerification;
 import com.opennova.model.Booking;
 import com.opennova.model.BookingStatus;
+import com.opennova.model.PaymentStatus;
 import com.opennova.model.RefundStatus;
 import com.opennova.repository.PaymentVerificationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -136,9 +137,12 @@ public class PaymentScreenshotService {
             System.out.println("🔍 Looking for booking with transaction ID: " + verification.getTransactionRef());
             Booking booking = bookingService.findByTransactionId(verification.getTransactionRef());
             if (booking != null) {
+                System.out.println("✅ Found booking ID: " + booking.getId() + " for payment verification");
+                
                 // Update booking status to CONFIRMED
                 booking.setStatus(BookingStatus.CONFIRMED);
                 booking.setConfirmedAt(LocalDateTime.now());
+                booking.setPaymentStatus(PaymentStatus.PAID); // Ensure payment status is updated
                 
                 // Generate QR code for the booking
                 String qrCode = qrCodeService.generateBookingQRCode(booking);
@@ -156,15 +160,31 @@ public class PaymentScreenshotService {
                     // Continue - payment is still approved even if email fails
                 }
                 
-                System.out.println("✅ Payment approved → Booking confirmed → QR generated → Email sent");
+                System.out.println("✅ SYNC COMPLETE: Payment approved → Booking #" + booking.getId() + " confirmed → QR generated → Email sent");
                 
             } else {
-                System.err.println("⚠️ No booking found for payment reference: " + verification.getTransactionRef());
+                System.err.println("⚠️ SYNC ISSUE: No booking found for payment reference: " + verification.getTransactionRef());
                 System.err.println("🔍 Debug: Payment verification details:");
                 System.err.println("   - Transaction Ref: " + verification.getTransactionRef());
                 System.err.println("   - Transaction ID: " + verification.getTransactionId());
                 System.err.println("   - User Email: " + verification.getUserEmail());
                 System.err.println("   - Expected Amount: " + verification.getExpectedAmount());
+                
+                // Try alternative search methods
+                System.err.println("🔍 Attempting alternative booking search...");
+                // Search by UPI transaction ID as fallback
+                Booking fallbackBooking = bookingService.findByTransactionId(verification.getTransactionId());
+                if (fallbackBooking != null) {
+                    System.out.println("✅ Found booking via UPI transaction ID: " + fallbackBooking.getId());
+                    // Process the booking confirmation
+                    fallbackBooking.setStatus(BookingStatus.CONFIRMED);
+                    fallbackBooking.setConfirmedAt(LocalDateTime.now());
+                    fallbackBooking.setPaymentStatus(PaymentStatus.PAID);
+                    String qrCode = qrCodeService.generateBookingQRCode(fallbackBooking);
+                    fallbackBooking.setQrCode(qrCode);
+                    bookingService.save(fallbackBooking);
+                    System.out.println("✅ FALLBACK SYNC: Booking confirmed via UPI transaction ID");
+                }
             }
         } catch (Exception e) {
             System.err.println("❌ Failed to process booking confirmation: " + e.getMessage());
@@ -204,13 +224,17 @@ public class PaymentScreenshotService {
         // Find and cancel the related booking
         try {
             // Look for booking by transaction reference (payment reference), not UPI transaction ID
+            System.out.println("🔍 Looking for booking to cancel with transaction ID: " + verification.getTransactionRef());
             Booking booking = bookingService.findByTransactionId(verification.getTransactionRef());
             if (booking != null) {
+                System.out.println("✅ Found booking ID: " + booking.getId() + " for payment rejection");
+                
                 // Update booking status to CANCELLED
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setCancelledAt(LocalDateTime.now());
                 booking.setCancellationReason("Payment verification rejected: " + reason);
                 booking.setRefundStatus(RefundStatus.APPROVED); // Auto-approve refund for rejected payments
+                booking.setPaymentStatus(PaymentStatus.FAILED); // Update payment status
                 
                 // Save the updated booking
                 Booking cancelledBooking = bookingService.save(booking);
@@ -229,10 +253,25 @@ public class PaymentScreenshotService {
                     // Continue - payment is still rejected even if email fails
                 }
                 
-                System.out.println("✅ Payment rejected → Booking cancelled → Rejection email sent");
+                System.out.println("✅ SYNC COMPLETE: Payment rejected → Booking #" + booking.getId() + " cancelled → Rejection email sent");
                 
             } else {
-                System.err.println("⚠️ No booking found for payment reference: " + verification.getTransactionRef());
+                System.err.println("⚠️ SYNC ISSUE: No booking found for payment reference: " + verification.getTransactionRef());
+                
+                // Try alternative search methods
+                System.err.println("🔍 Attempting alternative booking search...");
+                Booking fallbackBooking = bookingService.findByTransactionId(verification.getTransactionId());
+                if (fallbackBooking != null) {
+                    System.out.println("✅ Found booking via UPI transaction ID: " + fallbackBooking.getId());
+                    // Process the booking cancellation
+                    fallbackBooking.setStatus(BookingStatus.CANCELLED);
+                    fallbackBooking.setCancelledAt(LocalDateTime.now());
+                    fallbackBooking.setCancellationReason("Payment verification rejected: " + reason);
+                    fallbackBooking.setRefundStatus(RefundStatus.APPROVED);
+                    fallbackBooking.setPaymentStatus(PaymentStatus.FAILED);
+                    bookingService.save(fallbackBooking);
+                    System.out.println("✅ FALLBACK SYNC: Booking cancelled via UPI transaction ID");
+                }
             }
         } catch (Exception e) {
             System.err.println("❌ Failed to process booking cancellation: " + e.getMessage());

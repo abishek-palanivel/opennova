@@ -54,13 +54,13 @@ const GoogleSignupConfirmation = () => {
         
         console.log('🔄 Logging in user with Google token...');
         
-        // Use the login function with Google token
+        // Use the login function with Google token and wait for completion
         const result = await login(null, null, token);
         
         if (result.success) {
           console.log('✅ Google signup and login successful, redirecting to dashboard');
-          // Force page reload to ensure proper state update
-          window.location.href = '/user/dashboard';
+          // Use navigate instead of window.location.href to avoid race condition
+          navigate(result.redirectPath || '/user/dashboard', { replace: true });
         } else {
           console.error('❌ Login failed after signup:', result);
           setError('Failed to complete signup. Please try signing in instead.');
